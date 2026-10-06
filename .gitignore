@@ -45,3 +45,6 @@ next-env.d.ts
 # prisma generated client
 /src/generated/
 !.env.example
+
+# standalone simulator build output
+/dist-simulator/

@@ -51,6 +51,13 @@ Database integration tests run when `TEST_DATABASE_URL` points to a disposable d
 Afterwards the templates belong to you: **Templates** page → *Edit structure* (add/rename/remove rows and headers, default UOM and GST) or
 *Rebuild from a reference workbook* (`npm run template -- actual|client file.xlsx`). Changing a template affects new costings only.
 
+## Standalone simulator (no install, no database)
+
+`npm run simulator:build` produces `dist-simulator/simulator.html`: one self-contained page that runs the **same** calculation engine,
+CAD reader (pdf.js), Excel and PDF exporters in a browser. Create several styles, upload each CAD PDF, enter costing values, apply CAD,
+remove headers, compare Actual vs Client and export Excel / PDF. Entries are kept in the browser only (no server, no database).
+It is a trial tool, not the multi-user system (no shared data, versions live in the browser).
+
 ## Using it (workflow)
 
 1. **Customer / Brand** (masters; empty until you add them).

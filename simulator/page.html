@@ -1,0 +1,655 @@
+<title>Cost Engine Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: sticky top bar, control strip, then a narrow left rail (photo + CAD) beside the costing workspace.
+   Palette, type and density follow the Cost Engine application itself (cool neutrals, ink-blue accent,
+   amber = Actual, blue = Client, teal = CAD). */
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f9fafb; --line: #e4e7ec; --line-strong: #cfd4dc;
+  --ink: #101828; --ink-2: #475467; --ink-3: #7b8597;
+  --accent: #1d3557; --accent-soft: #e8eef7;
+  --actual: #8a4b08; --actual-soft: #fbf1e3; --client: #1d4f91; --client-soft: #e7f0fb;
+  --ok: #0f7b4f; --ok-soft: #e4f5ec; --warn: #b45309; --warn-soft: #fef3e2; --bad: #b42318; --bad-soft: #fdecea;
+  --cad: #0e7490; --cad-soft: #e0f4f8; --tip: #101828; --tip-ink: #ffffff; --shadow: rgba(16,24,40,.06);
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e131b; --surface: #151c27; --surface-2: #1a2230; --line: #263043; --line-strong: #34415a;
+    --ink: #e8edf5; --ink-2: #a9b4c6; --ink-3: #7b879b;
+    --accent: #8db3e8; --accent-soft: #1d2b44;
+    --actual: #e3a45c; --actual-soft: #33260f; --client: #7db0f0; --client-soft: #14263f;
+    --ok: #5cc596; --ok-soft: #12301f; --warn: #e8a24d; --warn-soft: #34260f; --bad: #f1857c; --bad-soft: #3a1714;
+    --cad: #52c3dc; --cad-soft: #0f2f38; --tip: #e8edf5; --tip-ink: #101828; --shadow: rgba(0,0,0,.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e131b; --surface: #151c27; --surface-2: #1a2230; --line: #263043; --line-strong: #34415a;
+  --ink: #e8edf5; --ink-2: #a9b4c6; --ink-3: #7b879b;
+  --accent: #8db3e8; --accent-soft: #1d2b44;
+  --actual: #e3a45c; --actual-soft: #33260f; --client: #7db0f0; --client-soft: #14263f;
+  --ok: #5cc596; --ok-soft: #12301f; --warn: #e8a24d; --warn-soft: #34260f; --bad: #f1857c; --bad-soft: #3a1714;
+  --cad: #52c3dc; --cad-soft: #0f2f38; --tip: #e8edf5; --tip-ink: #101828; --shadow: rgba(0,0,0,.3);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 13px; line-height: 1.45; margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 0 16px; }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; flex-wrap: wrap; padding-block: 6px; }
+.brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.brand b { font-size: 13px; letter-spacing: .14em; color: var(--accent); }
+.brand span { color: var(--ink-3); font-weight: 500; }
+.ro { display: inline-flex; align-items: center; gap: 6px; background: var(--warn-soft); color: var(--warn); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; }
+main { padding-block: 14px 40px; display: grid; gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 2px var(--shadow); min-width: 0; }
+.card > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.card > header h2 { margin: 0; font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
+.card > header p { margin: 2px 0 0; font-size: 12px; color: var(--ink-3); }
+.lbl { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; color: var(--ink-3); margin-bottom: 4px; }
+.controls { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1.1fr; gap: 14px; padding: 12px 14px; }
+.controls > div { min-width: 0; }
+input.field, select.field { width: 100%; height: 32px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); padding: 0 10px; }
+input.field:focus, select.field:focus, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field[disabled] { background: var(--surface-2); color: var(--ink-3); cursor: not-allowed; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); background: var(--surface-2); border-radius: 6px; padding: 2px; gap: 2px; flex-wrap: wrap; }
+.seg button { height: 26px; border: 0; background: transparent; border-radius: 4px; padding: 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .03em; color: var(--ink-2); cursor: pointer; }
+.seg button[aria-selected="true"].a { background: var(--actual); color: #fff; }
+.seg button[aria-selected="true"].c { background: var(--client); color: #fff; }
+.seg button:disabled { opacity: .4; cursor: not-allowed; }
+:root[data-theme="dark"] .seg button[aria-selected="true"] { color: #0e131b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-selected="true"] { color: #0e131b; } }
+.hint { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; cursor: pointer; color: var(--ink-2); }
+.chip:hover { background: var(--accent-soft); color: var(--accent); }
+.layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; align-items: start; }
+.rail { display: grid; gap: 14px; min-width: 0; }
+.photo { padding: 12px; }
+.photo img { display: block; max-width: 100%; max-height: 320px; margin: 0 auto; border-radius: 6px; border: 1px solid var(--line); }
+.drop { border: 1px dashed var(--line-strong); border-radius: 8px; background: var(--surface-2); padding: 26px 12px; text-align: center; color: var(--ink-3); font-size: 12px; }
+.drop b { display: block; color: var(--ink-2); font-size: 12.5px; margin-bottom: 2px; }
+.strip { position: sticky; top: calc(49px + env(safe-area-inset-top, 0px)); z-index: 20; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px; box-shadow: 0 4px 16px -8px var(--shadow); }
+.stat { padding: 6px 12px; border-radius: 6px; min-width: 0; }
+.stat.on.a { background: var(--actual-soft); } .stat.on.c { background: var(--client-soft); }
+.stat .k { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; color: var(--ink-3); }
+.stat.a .k { color: var(--actual); } .stat.c .k { color: var(--client); }
+.stat .v { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.stat .s { font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 8px; overflow-x: auto; }
+.tabs button { border: 0; background: transparent; height: 40px; padding: 0 12px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs .n { background: var(--line); border-radius: 999px; padding: 0 6px; font-size: 10.5px; margin-left: 5px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.badge { display: inline-flex; align-items: center; border-radius: 4px; padding: 0 6px; font-size: 10.5px; font-weight: 600; line-height: 16px; letter-spacing: .02em; background: var(--line); color: var(--ink-2); white-space: nowrap; }
+.badge.ok { background: var(--ok-soft); color: var(--ok); } .badge.warn { background: var(--warn-soft); color: var(--warn); } .badge.bad { background: var(--bad-soft); color: var(--bad); }
+.badge.cad { background: var(--cad-soft); color: var(--cad); } .badge.a { background: var(--actual-soft); color: var(--actual); } .badge.c { background: var(--client-soft); color: var(--client); } .badge.acc { background: var(--accent-soft); color: var(--accent); }
+.tw { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: inherit; }
+td, th { font-size: inherit; }
+th { font-size: 10.5px; }
+table.t { min-width: 860px; }
+th { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; padding: 8px 6px; text-align: right; white-space: nowrap; }
+th.l, td.l { text-align: left; } th.c, td.c { text-align: center; }
+td { padding: 4px 6px; text-align: right; border-top: 1px solid var(--line); vertical-align: middle; }
+tr.sec td { background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 6px; font-weight: 600; }
+tr.sec button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+tr.sec .nm { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 700; }
+tr.sec.a .nm { color: var(--actual); } tr.sec.c .nm { color: var(--client); }
+tr.sec .ct { background: var(--line); border-radius: 999px; padding: 0 6px; font-size: 10.5px; color: var(--ink-2); font-weight: 600; }
+tr.line:hover td { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+tr.line.empty td { color: var(--ink-3); }
+tr.tot td { background: var(--surface-2); border-top: 2px solid var(--line-strong); font-weight: 700; }
+tr.tot.strong td { background: var(--accent-soft); }
+td.name { text-align: left; padding-left: 8px; }
+td.name .d { font-size: 11px; color: var(--ink-3); font-weight: 400; }
+.chev { width: 16px; height: 16px; border: 0; background: transparent; cursor: pointer; color: var(--ink-3); border-radius: 3px; padding: 0; margin-right: 4px; font-size: 11px; }
+.chev:hover { background: var(--line); }
+.tag { display: inline-block; border-radius: 3px; padding: 0 4px; font-size: 9.5px; font-weight: 700; letter-spacing: .03em; line-height: 14px; cursor: help; margin-left: 4px; text-transform: uppercase; }
+.tag.CAD { background: var(--cad-soft); color: var(--cad); } .tag.OVERRIDE, .tag.TEMPLATE { background: var(--warn-soft); color: var(--warn); } .tag.IMPORT { background: transparent; color: var(--ink-3); font-size: 11px; padding: 0 2px; text-transform: none; }
+.tag.MANUAL, .tag.MASTER { background: var(--accent-soft); color: var(--accent); }
+.attrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; padding: 10px 14px 10px 34px; background: var(--surface-2); text-align: left; }
+.attrs div b { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.attrs div span { font-size: 12.5px; word-break: break-word; }
+.attrs .meta { grid-column: 1 / -1; font-size: 11px; color: var(--ink-3); }
+.pad { padding: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.kpi { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.kpi.a { border-color: color-mix(in srgb, var(--actual) 35%, var(--line)); } .kpi.c { border-color: color-mix(in srgb, var(--client) 35%, var(--line)); }
+.kpi .k { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; color: var(--ink-3); }
+.kpi .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.kpi .s { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.note { border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line)); background: var(--warn-soft); color: var(--ink-2); border-radius: 6px; padding: 8px 12px; font-size: 12.5px; }
+.note b { color: var(--ink); }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+.kv span:first-child { color: var(--ink-2); }
+dl.cad { margin: 0; border: 1px solid var(--line); border-radius: 6px; }
+dl.cad > div { display: grid; grid-template-columns: 92px 1fr auto; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--line); align-items: center; }
+dl.cad > div:first-child { border-top: 0; }
+dl.cad > div.v { background: var(--warn-soft); }
+dl.cad dt { color: var(--ink-2); font-size: 12px; } dl.cad dd { margin: 0; font-weight: 600; font-size: 13px; }
+.warnbox { border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line)); background: var(--warn-soft); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--ink-2); }
+.warnbox b { color: var(--warn); display: block; margin-bottom: 3px; }
+.warnbox ul { margin: 0; padding-left: 16px; }
+.cadimg { width: 100%; display: block; border: 1px solid var(--line); border-radius: 6px; background: #fff; aspect-ratio: 2.08 / 1; object-fit: cover; object-position: top; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; gap: 10px; align-items: flex-start; padding: 6px 12px; border-top: 1px solid var(--line); }
+.list li:first-child { border-top: 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: var(--ink-3); }
+.empty { text-align: center; padding: 44px 16px; color: var(--ink-2); }
+.empty b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--ink-3); align-items: center; }
+#tip { position: fixed; z-index: 100; max-width: 340px; background: var(--tip); color: var(--tip-ink); border-radius: 6px; padding: 6px 10px; font-size: 11.5px; line-height: 1.4; pointer-events: none; opacity: 0; transition: opacity .1s; white-space: pre-line; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+#tip.on { opacity: 1; }
+.themebtn { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 6px; height: 28px; padding: 0 10px; cursor: pointer; font-size: 12px; color: var(--ink-2); }
+@media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); } .strip { position: static; } }
+@media (max-width: 700px) { .controls, .kpis, .grid2 { grid-template-columns: minmax(0, 1fr); } .strip { grid-template-columns: minmax(0, 1fr); } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { #tip { transition: none; } }
+
+input.cell { width: 100%; min-width: 0; height: 26px; border: 1px solid transparent; background: transparent; text-align: right; padding: 0 6px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+input.cell.l { text-align: left; }
+input.cell:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface); }
+input.cell:focus { border-color: var(--accent); background: var(--surface); outline: 2px solid color-mix(in srgb, var(--accent) 22%, transparent); outline-offset: 0; }
+input.cell:disabled { color: var(--ink-3); }
+.iconbtn { border: 0; background: transparent; color: var(--ink-3); cursor: pointer; border-radius: 4px; padding: 3px 5px; font-size: 12px; line-height: 1; }
+.iconbtn:hover { background: var(--bad-soft); color: var(--bad); }
+.iconbtn.ok:hover { background: var(--ok-soft); color: var(--ok); }
+tr.line.removed td { opacity: .45; text-decoration: line-through; }
+tr.line.removed td:last-child { text-decoration: none; opacity: 1; }
+.btn { height: 28px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 6px; padding: 0 11px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--ink-2); }
+.btn:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .btn.pri { color: #0e131b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.pri { color: #0e131b; } }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.addrow { color: var(--ink-3); font-size: 12px; background: none; border: 0; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.addrow:hover { background: var(--line); color: var(--accent); }
+.inl { display: inline-flex; gap: 6px; align-items: center; }
+.inl input { height: 26px; border: 1px solid var(--accent); border-radius: 4px; padding: 0 8px; background: var(--surface); min-width: 220px; }
+.toasts { position: fixed; right: 14px; bottom: 14px; z-index: 90; display: grid; gap: 8px; width: min(340px, calc(100vw - 28px)); }
+.toast { background: var(--surface); border: 1px solid var(--line-strong); border-left: 3px solid var(--ok); border-radius: 6px; padding: 8px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 12.5px; }
+.toast.warn { border-left-color: var(--warn); } .toast b { display: block; }
+.fileb { position: relative; overflow: hidden; display: inline-flex; align-items: center; }
+.fileb input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.rmsec { margin-left: 4px; }
+</style>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><b>UNITED TEXTILE MILLS</b><span>Cost Engine</span></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="ro">Simulator · real calculation engine · Excel &amp; PDF export · entries stay in this browser</span>
+      <button class="themebtn" id="reset" type="button">Reset</button>
+      <button class="themebtn" id="theme" type="button" aria-label="Switch colour theme">Theme</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card" aria-label="Workflow">
+    <div class="controls">
+      <div>
+        <div class="lbl">1 · Customer / Brand</div>
+        <input class="field" id="customer" aria-label="Customer" placeholder="Customer (type any name)" autocomplete="off">
+        <div class="hint">In the full app: a managed master list.</div>
+      </div>
+      <div>
+        <div class="lbl">2 · Style number</div>
+        <input class="field" id="style" aria-label="Style number" autocomplete="off" spellcheck="false" placeholder="e.g. 72232">
+        <div class="quick" id="stylechips" style="margin-top:6px"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn" type="button" id="newstyle">＋ New style</button><span class="hint" id="stylehint" style="margin:0"></span></div>
+      </div>
+      <div>
+        <div class="lbl">3 · Category</div>
+        <select class="field" id="category" aria-label="Category"></select>
+        <div class="hint" id="cathint">Sets the client Overhead+Margin rate.</div>
+      </div>
+      <div>
+        <div class="lbl">4 · Costing mode</div>
+        <div class="seg" role="tablist" aria-label="Costing mode"><button class="a" id="mA" role="tab" type="button">ACTUAL COSTING</button><button class="c" id="mC" role="tab" type="button">CLIENT COSTING</button></div>
+        <div class="hint">Each mode has its own rows. Neither is derived from the other.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="layout">
+    <aside class="rail" id="rail"></aside>
+    <div style="display:grid;gap:14px;min-width:0">
+      <div class="strip" id="strip"></div>
+      <section class="card" style="overflow:hidden">
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div id="pane"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<div id="tip" role="tooltip"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<datalist id="uomlist"></datalist>
+
+<script>window.FONTS_B64 = /*FONTS*/null;</script>
+<script>/*ENGINE*/</script>
+<script>
+const DATA = /*DATA*/null;
+</script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var E = window.ENGINE, T = DATA.templates, RULES = E.DEFAULT_RULES, KEY = "uce-interactive-preview-v1";
+  var inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var q4 = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 4 });
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function m(v) { return v == null || !isFinite(v) ? "—" : inr.format(v); }
+  function rs(v, sign) { if (v == null || !isFinite(v)) return "—"; var s = v < 0 ? "−" : (sign && v > 0 ? "+" : ""); return s + "₹" + inr.format(Math.abs(v)); }
+  function q(v) { return v == null ? "" : q4.format(v); }
+  function pc(v, dp) { return v == null || !isFinite(v) ? "—" : v.toFixed(dp == null ? 2 : dp) + "%"; }
+  function raw(v, scale) { return v == null ? "" : String(parseFloat((v * (scale || 1)).toFixed(4))); }
+  function tip(t) { return t ? ' data-tip="' + esc(t) + '"' : ""; }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function uid() { return Math.random().toString(36).slice(2, 8); }
+
+  /* ───────── state ───────── */
+  var PER = ["no", "customer", "docs", "saved", "category", "cad", "cadFile", "cadPreview", "photo"];
+  var S = { id: null, styles: {}, order: [], no: "", customer: "", mode: "CLIENT", tab: "costing", docs: {}, saved: { ACTUAL: [], CLIENT: [] }, category: "", cad: null, cadFile: "", cadPreview: null, photo: null, closed: {}, open: {}, showRemoved: false, adding: null, addingHeader: false, editCad: null, cmpOpen: {} };
+  var DL = null, FONTS = null;
+  function fresh(type, no) { return E.createFromTemplate(T[type], { number: no || "—" }, "STRUCTURE"); }
+  function newRecord(no) { return { no: no, customer: "", docs: { ACTUAL: fresh("ACTUAL", no), CLIENT: fresh("CLIENT", no) }, saved: { ACTUAL: [], CLIENT: [] }, category: "", cad: null, cadFile: "", cadPreview: null, photo: null }; }
+  function stash() { if (!S.id) return; var r = {}; PER.forEach(function (k) { r[k] = S[k]; }); S.styles[S.id] = r; }
+  function activate(id) { stash(); var r = S.styles[id]; PER.forEach(function (k) { S[k] = r[k]; }); S.id = id; S.closed = {}; S.open = {}; S.adding = null; S.addingHeader = false; S.editCad = null; S.tab = "costing"; }
+  function addStyle(no) { var id = "s" + uid(); S.styles[id] = newRecord(no); S.order.push(id); activate(id); return id; }
+  function sampleStyle() { addStyle("72232"); S.cad = clone(DATA.cad); S.cadFile = "sample CAD (style 72232)"; S.cadPreview = DATA.cadPreview; }
+  function load() {
+    try {
+      var j = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (j && j.order && j.order.length && j.styles && j.styles[j.id]) { S.styles = j.styles; S.order = j.order; S.mode = j.mode || "CLIENT"; var id = j.id; S.id = null; activate(id); return; }
+    } catch (e) { /* storage unavailable */ }
+    sampleStyle();
+  }
+  function persist() {
+    stash();
+    var pack = function (slim) { var st = {}; S.order.forEach(function (id) { var r = Object.assign({}, S.styles[id]); if (slim) { r.photo = null; r.cadPreview = null; } st[id] = r; }); return JSON.stringify({ id: S.id, order: S.order, styles: st, mode: S.mode }); };
+    try { localStorage.setItem(KEY, pack(false)); } catch (e) { try { localStorage.setItem(KEY, pack(true)); } catch (e2) { /* ignore */ } }
+  }
+  function toast(title, body, warn) { var el = document.createElement("div"); el.className = "toast" + (warn ? " warn" : ""); el.innerHTML = "<b>" + esc(title) + "</b>" + (body ? esc(body).replace(/\n/g, "<br>") : ""); $("toasts").appendChild(el); setTimeout(function () { el.remove(); }, warn ? 7000 : 4200); }
+  var doc = function () { return S.docs[S.mode]; };
+  function setDoc(d) { S.docs[S.mode] = d; render(); }
+  function calc(d) { return d.type === "ACTUAL" ? E.calculateActualCost(d) : E.calculateClientCost(d); }
+  function setStyleNo(no, fromInput) { S.no = no; if (!fromInput && $("style")) $("style").value = no; ["ACTUAL", "CLIENT"].forEach(function (t) { S.docs[t] = Object.assign({}, S.docs[t], { style: Object.assign({}, S.docs[t].style, { number: no || "—" }) }); }); }
+
+  /* ───────── provenance tags ───────── */
+  var ORIGIN = { IMPORT: "Imported", CAD: "CAD", MANUAL: "Entered", OVERRIDE: "Override", TEMPLATE: "Template default", MASTER: "Category rule", DERIVED: "Derived", DEFAULT: "Default" };
+  function refText(r) { return r ? [r.file, r.sheet && "Sheet " + r.sheet, r.column, r.cell && "cell " + r.cell, r.note].filter(Boolean).join(" → ") : ""; }
+  function provTip(p, what, value) {
+    var t = (ORIGIN[p.origin] || p.origin) + " " + what + ": " + value;
+    if (p.ref) t += "\nSource: " + refText(p.ref);
+    if (p.original) t += "\nOriginal [" + (ORIGIN[p.original.origin] || p.original.origin) + "]: " + (p.original.value == null ? "(blank)" : p.original.value) + (p.original.ref ? "\n" + refText(p.original.ref) : "");
+    if (p.origin === "TEMPLATE") t += "\nDefault from the template. Change it for this style if needed.";
+    return t;
+  }
+  function tag(p, what, value, id, field) {
+    if (!p || p.origin === "IMPORT" || p.origin === "DEFAULT") return "";
+    var lbl = p.origin === "OVERRIDE" ? "OVR" : p.origin === "TEMPLATE" ? "TPL" : p.origin === "MASTER" ? "RULE" : p.origin === "MANUAL" ? "" : ORIGIN[p.origin];
+    if (!lbl) return "";
+    return '<span class="tag ' + p.origin + '" tabindex="0"' + tip(provTip(p, what, value)) + ">" + lbl + "</span>" + (p.origin === "OVERRIDE" ? '<button class="iconbtn ok" type="button" title="Revert to the original value" data-revert="' + esc(id) + "|" + field + '">↺</button>' : "");
+  }
+
+  /* ───────── controls ───────── */
+  $("uomlist").innerHTML = DATA.uoms.map(function (u) { return '<option value="' + esc(u) + '">'; }).join("");
+  $("category").innerHTML = '<option value="">Select category</option>' + DATA.tiers.map(function (t) { return '<option value="' + esc(t.name) + '">' + esc(t.name) + " · OH+M " + Math.round(t.rate * 100) + "%</option>"; }).join("");
+  $("style").addEventListener("input", function (e) { setStyleNo(e.target.value.trim().replace(/^#/, ""), true); renderSoft(); });
+  $("customer").addEventListener("input", function (e) { S.customer = e.target.value; renderSoft(); });
+  $("newstyle").onclick = function () { addStyle(""); render(); $("style").focus(); toast("New style", "Type its style number, upload its CAD, then enter the costing."); };
+  $("stylechips").addEventListener("click", function (e) { var b = e.target.closest("[data-sid]"); if (b && b.dataset.sid !== S.id) { activate(b.dataset.sid); render(); } });
+  $("category").addEventListener("change", function (e) {
+    S.category = e.target.value;
+    var tier = DATA.tiers.filter(function (t) { return t.name === S.category; })[0], d = S.docs.CLIENT;
+    d = Object.assign({}, d, { client: Object.assign({}, d.client, { category: S.category || null }) });
+    var oh = d.lines.filter(function (l) { return l.sectionKey === "overhead_margin" && !l.removed; })[0];
+    if (tier && oh) d = E.setLineField(d, oh.id, "rate", tier.rate, { by: "you" }, "MASTER", { note: "Category “" + tier.name + "” → Overhead + margin table (" + tier.ref + ")" });
+    S.docs.CLIENT = d; if (tier) { S.mode = "CLIENT"; toast("Overhead+Margin set to " + Math.round(tier.rate * 100) + "%", "From category “" + tier.name + "”. You can still change it on the row."); }
+    render();
+  });
+  $("mA").onclick = function () { S.mode = "ACTUAL"; S.closed = {}; S.open = {}; render(); };
+  $("mC").onclick = function () { S.mode = "CLIENT"; S.closed = {}; S.open = {}; render(); };
+  $("theme").onclick = function () { var r = document.documentElement, cur = r.getAttribute("data-theme"), dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches; r.setAttribute("data-theme", dark ? "light" : "dark"); };
+  $("reset").onclick = function () { S.styles = {}; S.order = []; S.id = null; sampleStyle(); toast("Simulator reset", "All styles were cleared; the sample style is back."); render(); };
+
+  /* tooltip */
+  var tipEl = $("tip");
+  function showTip(t) { var s = t.getAttribute("data-tip"); if (!s) return; tipEl.textContent = s; tipEl.classList.add("on"); var r = t.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight; tipEl.style.left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8) + "px"; var y = r.top - h - 8; tipEl.style.top = (y < 8 ? r.bottom + 8 : y) + "px"; }
+  document.addEventListener("mouseover", function (e) { var t = e.target.closest("[data-tip]"); if (t) showTip(t); });
+  document.addEventListener("mouseout", function (e) { if (e.target.closest("[data-tip]")) tipEl.classList.remove("on"); });
+  document.addEventListener("focusin", function (e) { var t = e.target.closest("[data-tip]"); if (t) showTip(t); });
+  document.addEventListener("focusout", function () { tipEl.classList.remove("on"); });
+
+  /* ───────── rail: photo + CAD ───────── */
+  function cadRows(c) { return [["styleNumber", "Style Number", c.styleNumber, function (v) { return String(v); }], ["length", "Length", c.length, function (v) { return q(v) + " m"; }], ["width", "Width", c.width, function (v) { return q(v) + '"'; }], ["efficiency", "Efficiency", c.efficiency, function (v) { return q(v) + "%"; }], ["lengthPerSet", "Length / Set", c.lengthPerSet, function (v) { return q(v) + " m"; }], ["totalPieces", "Total Pieces", c.totalPieces, function (v) { return String(v); }], ["totalLength", "Total Length", c.totalLength, function (v) { return q(v) + " m"; }]]; }
+  function applyDry() {
+    if (!S.cad) return [];
+    var d = doc(), out = E.applyCadToCosting(d, S.cad, RULES.cadMappingRules);
+    return out.applied.map(function (a) {
+      var before = d.type === "ACTUAL" && a.target === "Consumption" ? d.actual.consumption.value : (d.lines.filter(function (l) { return l.id === a.lineId; })[0] || {}).quantity;
+      return before === a.value ? null : { target: a.target, from: before == null ? "—" : q(before), to: q(a.value) + " m" };
+    }).filter(Boolean);
+  }
+  function rail() {
+    var h = '<section class="card"><header><div><h2>Style image</h2><p>Style ' + esc(S.no || "—") + "</p></div>" + (S.photo ? '<span class="fileb btn">Replace<input type="file" accept="image/*" id="photo" aria-label="Replace style image"></span>' : "") + "</header>";
+    h += S.photo ? '<div class="photo"><img alt="Style image" src="' + S.photo + '"></div>' : '<div class="pad"><label class="drop fileb" style="display:block;cursor:pointer"><b>Upload the style image</b>PNG, JPEG or WebP<input type="file" accept="image/*" id="photo" aria-label="Upload style image"></label></div>';
+    h += '</section><section class="card"><header><div><h2>CAD</h2><p>' + (S.cad ? esc(S.cadFile) : "Upload the CAD / marker PDF") + '</p></div><span class="fileb btn">' + (S.cad ? "Replace CAD" : "Upload CAD PDF") + '<input type="file" accept="application/pdf" id="cadfile" aria-label="Upload CAD PDF"></span></header><div class="pad" style="display:grid;gap:10px">';
+    var c = S.cad;
+    if (!c) {
+      h += '<label class="drop fileb" style="display:block;cursor:pointer"><b>Upload the CAD PDF</b>Style number, length, width, efficiency and consumption are read from it.<input type="file" accept="application/pdf" id="cadfile2" aria-label="Upload CAD PDF"></label><button class="btn" type="button" id="samplecad">Use the sample CAD (style 72232)</button><div class="hint" style="margin:0">Without a CAD, fabric consumption is entered by hand.</div></div></section>';
+      return h;
+    }
+    if (S.cadPreview) h += '<img class="cadimg" alt="CAD marker preview" src="' + S.cadPreview + '">';
+    h += '<div><div class="lbl">CAD DATA</div><dl class="cad">' + cadRows(c).map(function (r) {
+      var f = r[2], eff = f.manual ? f.manual.value : f.value, ver = f.requiresVerification && !f.manual, editing = S.editCad === r[0];
+      var val = editing ? '<span class="inl"><input id="cadedit" data-cadedit="' + r[0] + '" value="' + esc(eff == null ? "" : eff) + '" style="min-width:90px;width:100px"><button class="iconbtn ok" type="button" data-cadsave="' + r[0] + '">✓</button><button class="iconbtn" type="button" data-cadcancel="1">✕</button></span>' : (eff == null ? "not found" : esc(r[3](eff)));
+      var badges = f.manual ? '<span class="badge acc"' + tip("Extracted: " + (f.value == null ? "nothing" : f.value) + (f.manual.reason ? " · " + f.manual.reason : "")) + ">" + (f.manual.value === f.value ? "CONFIRMED" : "EDITED") + "</span>" : ver ? '<span class="badge warn" tabindex="0"' + tip((f.notes || []).join("\n") || "Low confidence. Verify.") + ">VERIFY</span>" : (eff == null ? "" : '<span class="mono"' + tip((f.raw || "") + "\n" + (f.notes || []).join(" ")) + ">" + Math.round(f.confidence * 100) + "%</span>");
+      return '<div class="' + (ver || eff == null ? "v" : "") + '"><dt>' + r[1] + "</dt><dd class='num'>" + val + " " + (editing ? "" : badges) + "</dd><span>" + (editing ? "" : (ver && eff != null ? '<button class="iconbtn ok" type="button" title="Confirm this value as correct" data-cadconfirm="' + r[0] + '">✓</button>' : "") + '<button class="iconbtn" type="button" title="Edit manually" data-cadstart="' + r[0] + '">✎</button>') + "</span></div>";
+    }).join("") + "</dl></div>";
+    var cs = c.styleNumber.manual ? c.styleNumber.manual.value : c.styleNumber.value, match = E.cadStyleMatches(S.no, cs);
+    h += match === "MATCH" ? '<div class="hint" style="margin:0;color:var(--ok)">✓ CAD style matches the entered style number</div>' : match === "MISMATCH" ? '<div class="warnbox" style="border-color:var(--bad);background:var(--bad-soft)"><b style="color:var(--bad)">Style mismatch</b>The CAD says style “' + esc(cs) + '” but the entered style is “' + esc(S.no || "—") + "”. This CAD may belong to a different style.</div>" : "";
+    if (c.warnings.length) h += '<div class="warnbox"><b>Review needed</b><ul>' + c.warnings.map(function (w) { return "<li>" + esc(w) + "</li>"; }).join("") + "</ul></div>";
+    if (c.sizeBreakdown.value) h += '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11.5px;color:var(--ink-3)">Sets ' + c.sets.value + ": " + c.sizeBreakdown.value.map(function (z) { return '<span class="badge">' + z.size + "/" + z.qty + "</span>"; }).join("") + c.pieceNames.map(function (n) { return '<span class="badge cad">' + esc(n) + "</span>"; }).join("") + "</div>";
+    var dry = applyDry();
+    h += '<div style="border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:10px"><div class="lbl">CAD → Costing (' + (S.mode === "ACTUAL" ? "Actual" : "Client") + ")</div>" + (dry.length ? dry.map(function (a) { return '<div class="kv"><span>' + esc(a.target) + '</span><span class="num">' + a.from + ' → <b style="color:var(--cad)">' + a.to + "</b></span></div>"; }).join("") : '<div class="hint" style="margin:0">Nothing left to feed: already applied, no matching row, or the CAD value needs verification first.</div>') + '<button class="btn pri" type="button" id="applycad" style="width:100%;margin-top:8px"' + (dry.length ? "" : " disabled") + ">Apply CAD to costing</button><div class=\"hint\">The previous value is kept as the original and can be reverted from the row.</div></div>";
+    return h + "</div></section>";
+  }
+  var railEl = $("rail");
+  railEl.addEventListener("click", function (e) {
+    var b;
+    if ((b = e.target.closest("[data-cadstart]"))) { S.editCad = b.dataset.cadstart; render(); var i = $("cadedit"); if (i) { i.focus(); i.select(); } }
+    else if (e.target.closest("[data-cadcancel]")) { S.editCad = null; render(); }
+    else if ((b = e.target.closest("[data-cadsave]"))) saveCad(b.dataset.cadsave, $("cadedit").value);
+    else if ((b = e.target.closest("[data-cadconfirm]"))) { var f = S.cad[b.dataset.cadconfirm]; saveCad(b.dataset.cadconfirm, f.manual ? f.manual.value : f.value, true); }
+    else if (e.target.closest("#samplecad")) { S.cad = clone(DATA.cad); S.cadFile = "sample CAD (style 72232)"; S.cadPreview = DATA.cadPreview; if (!S.no) setStyleNo("72232"); render(); }
+    else if (e.target.closest("#applycad")) {
+      var out = E.applyCadToCosting(doc(), S.cad, RULES.cadMappingRules, { by: "you" });
+      if (out.applied.length) { setDoc(out.doc); toast("CAD applied", out.applied.map(function (a) { return a.target + " → " + a.value + " " + a.unit; }).join("\n")); }
+      if (out.skipped.length) toast("Not applied", out.skipped.map(function (s) { return s.reason; }).join("\n"), true);
+    }
+  });
+  railEl.addEventListener("keydown", function (e) { if (e.target.id === "cadedit") { if (e.key === "Enter") saveCad(e.target.dataset.cadedit, e.target.value); if (e.key === "Escape") { S.editCad = null; render(); } } });
+  function saveCad(key, v, confirmed) {
+    var f = S.cad[key], val = key === "styleNumber" ? String(v).replace(/^#/, "") : (v === "" || v == null ? null : Number(v));
+    if (typeof val === "number" && !isFinite(val)) { toast("Not a number", "", true); return; }
+    f.manual = { value: val, reason: confirmed || val === f.value ? "confirmed as extracted" : "manual correction" };
+    S.editCad = null; toast("CAD value recorded", "The extracted value is kept; your value is used from now on."); render();
+  }
+  railEl.addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    if (e.target.id === "photo") readImage(f);
+    if (e.target.id === "cadfile" || e.target.id === "cadfile2") readCadPdf(f);
+    e.target.value = "";
+  });
+  function readImage(file) {
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function () { var sc = Math.min(1, 700 / Math.max(img.width, img.height)), cv = document.createElement("canvas"); cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); S.photo = cv.toDataURL("image/jpeg", 0.85); URL.revokeObjectURL(url); render(); };
+    img.onerror = function () { toast("Could not read this image", "Use PNG, JPEG or WebP.", true); };
+    img.src = url;
+  }
+  function readCadPdf(file) {
+    toast("Reading CAD…", file.name);
+    file.arrayBuffer().then(function (buf) { return E.readCad(buf); }).then(function (r) {
+      S.cad = r.cad; S.cadFile = file.name; S.cadPreview = r.preview; S.editCad = null;
+      var cs = r.cad.styleNumber.value;
+      if (!S.no && cs) { setStyleNo(String(cs)); toast("Style number taken from the CAD", String(cs)); }
+      toast("CAD extracted", r.cad.warnings.length ? r.cad.warnings.length + " item(s) need review (see Review needed)." : "All values read with high confidence.", !!r.cad.warnings.length); render();
+    }).catch(function () { toast("This PDF could not be read", "It may be a scanned image without a text layer. Enter the values manually, or try another CAD export.", true); });
+  }
+
+  /* ───────── summary strip ───────── */
+  function touched(d) { return d.lines.some(function (l) { return !l.removed && ((l.quantity || 0) !== 0 || (l.rate || 0) !== 0 || (l.amount || 0) !== 0); }); }
+  function issuesOf(d) { return E.validateCosting({ doc: d, enteredStyleNumber: S.no, customerId: S.customer || null, cad: S.cad, cadRequired: true }).filter(function (i) { return i.level !== "info"; }); }
+  function strip() {
+    var A = calc(S.docs.ACTUAL), C = calc(S.docs.CLIENT), tA = touched(S.docs.ACTUAL), tC = touched(S.docs.CLIENT);
+    var pa = tA ? A.costPerPc : null, pcl = tC ? C.totalCost.base : null, diff = pa != null && pcl != null ? pcl - pa : null, prem = diff != null && pa ? diff * 100 / pa : null;
+    var iss = issuesOf(doc()), e = iss.filter(function (i) { return i.level === "error"; }).length, w = iss.filter(function (i) { return i.level === "warning"; }).length;
+    return '<div class="stat a' + (S.mode === "ACTUAL" ? " on" : "") + '"><div class="k">Actual cost / pc</div><div class="v num">' + rs(pa) + '</div><div class="s">' + (tA ? "Total cost " + rs(A.totalCost) + " · profit " + rs(A.perPcProfit) + " / pc" : "Enter quantities and rates") + "</div></div>" +
+      '<div class="stat c' + (S.mode === "CLIENT" ? " on" : "") + '"><div class="k">Client cost / pc</div><div class="v num">' + rs(pcl) + '</div><div class="s">' + (tC ? "Final PO incl. transport " + rs(C.finalPoPriceInclTransport) : "Enter quantities and rates") + "</div></div>" +
+      '<div class="stat"><div class="k">Difference / pc</div><div class="v num">' + (diff == null ? "—" : rs(diff, true)) + '</div><div class="s">' + (diff == null ? "Appears once both costings have values" : "Client premium " + pc(prem)) + "</div></div>" +
+      '<div style="text-align:right;align-self:center;padding:0 8px"><div class="lbl">Checks</div>' + (e || w ? (e ? '<span class="badge bad">' + e + (e === 1 ? " error" : " errors") + "</span> " : "") + (w ? '<span class="badge warn">' + w + (w === 1 ? " warning" : " warnings") + "</span>" : "") : '<span class="badge ok">ALL CLEAR</span>') + "</div>";
+  }
+
+  /* ───────── tables ───────── */
+  function secRow(cls, key, label, count, span, cells, removed, note, canRemove) {
+    var open = !S.closed[S.mode + key] && !removed;
+    return '<tr class="sec ' + cls + '"><td class="l" colspan="' + span + '"><button type="button" data-sec="' + esc(key) + '" aria-expanded="' + open + '"><span style="color:var(--ink-3)">' + (open ? "▾" : "▸") + '</span><span class="nm"' + (removed ? ' style="text-decoration:line-through;opacity:.6"' : "") + ">" + esc(label) + '</span><span class="ct">' + count + "</span></button>" + (note ? '<span style="font-weight:400;font-size:11px;color:var(--ink-3);margin-left:8px">' + esc(note) + "</span>" : "") +
+      (removed ? ' <button class="btn" type="button" data-restoresec="' + esc(key) + '" style="height:22px;font-size:11px;margin-left:8px">Restore header</button>' : (canRemove ? ' <button class="iconbtn rmsec" type="button" title="Remove this header and all its rows from this costing (restorable)" aria-label="Remove header ' + esc(label) + '" data-rmsec="' + esc(key) + '">🗑</button>' : "")) + "</td>" +
+      cells.map(function (c) { return '<td class="num">' + c + "</td>"; }).join("") + "</tr>";
+  }
+  function addRow(span, key) {
+    if (S.adding === key) return '<tr><td colspan="' + span + '" style="text-align:left;padding:6px 14px"><span class="inl"><input id="newrow" placeholder="Component name" data-addto="' + esc(key) + '"><button class="btn pri" type="button" data-addok="' + esc(key) + '">Add</button><button class="btn" type="button" data-addcancel="1">Cancel</button></span></td></tr>';
+    return '<tr><td colspan="' + span + '" style="text-align:left;padding:2px 10px"><button class="addrow" type="button" data-add="' + esc(key) + '">＋ Add component</button></td></tr>';
+  }
+  function numCell(id, f, v, dis, o) { o = o || {}; return '<input class="cell" inputmode="decimal" autocomplete="off" data-k="' + esc(id) + "|" + f + '" data-line="' + esc(id) + '" data-f="' + f + '"' + (o.pct ? ' data-pct="1"' : "") + ' value="' + raw(v, o.pct ? 100 : 1) + '"' + (dis ? " disabled" : "") + ' aria-label="' + esc(o.label || f) + '">'; }
+
+  function clientTable() {
+    var d = S.docs.CLIENT, R = E.calculateClientCost(d), h = "";
+    h += '<div class="tw"><table class="t" style="min-width:900px"><colgroup><col style="width:230px"><col style="width:38px"><col style="width:84px"><col style="width:78px"><col style="width:92px"><col style="width:64px"><col style="width:84px"><col style="width:76px"><col style="width:84px"><col style="width:96px"><col style="width:36px"></colgroup><thead><tr><th class="l" style="padding-left:14px">Cost Item</th><th class="c">Type</th><th>Quantity</th><th class="l">UOM</th><th title="Price without GST">Price w/o GST</th><th>GST</th><th title="Base Total (W/o GST Factor)">Base Total</th><th title="Input Cost">Input Cost</th><th title="Base Total (With GST)">With GST</th><th class="c">Source</th><th></th></tr></thead><tbody>';
+    var secs = d.client.sections.filter(function (s) { return S.showRemoved || !s.removed; });
+    function block(sec) {
+      var lines = d.lines.filter(function (l) { return l.sectionKey === sec.key && (S.showRemoved || !l.removed); }), t = R.sections.filter(function (x) { return x.key === sec.key; })[0], rem = !!sec.removed;
+      var open = !S.closed[S.mode + sec.key] && !rem;
+      h += secRow("c", sec.key, sec.label, lines.filter(function (l) { return !l.removed; }).length, 6, rem ? ["—", "—", "—"] : [m(t ? t.total : 0), m(t ? t.gst : 0), m(t ? t.withGst : 0)], rem, "", true).replace("</tr>", "<td></td><td></td></tr>");
+      if (!open) return;
+      lines.forEach(function (l) {
+        var pct = l.calc === "PERCENT_OF_SUBTOTAL", r = R.lineResults[l.id] || { base: 0, gst: 0, withGst: 0 }, name = l.item || l.description || l.sectionLabel, isOpen = S.open[l.id], rem2 = !!l.removed;
+        h += '<tr class="line' + (rem2 ? " removed" : "") + '"><td class="name l"><button class="chev" type="button" data-row="' + esc(l.id) + '" aria-label="Show details" aria-expanded="' + !!isOpen + '">' + (isOpen ? "▾" : "▸") + "</button>" +
+          (l.custom ? '<input class="cell l" style="width:170px" data-k="' + esc(l.id) + '|item" data-line="' + esc(l.id) + '" data-f="item" value="' + esc(l.item) + '">' : "<span style='font-weight:500'>" + esc(l.item || l.description || "(unnamed)") + "</span>") + (l.custom ? ' <span class="badge acc">NEW</span>' : "") + (l.description && !isOpen && !l.custom ? '<div class="d" style="padding-left:20px">' + esc(l.description) + "</div>" : "") + "</td>" +
+          '<td class="c" style="color:var(--ink-3);font-weight:600;font-size:11px">' + esc(l.itemType || "") + "</td><td>" + (pct ? '<span style="color:var(--ink-3);font-size:11.5px" title="Quantity is not used: % of Total">% of Total</span>' : numCell(l.id, "quantity", l.quantity, rem2, { label: name + " quantity" })) + "</td>" +
+          "<td>" + (pct ? "" : '<input class="cell l" list="uomlist" data-k="' + esc(l.id) + '|uom" data-line="' + esc(l.id) + '" data-f="uom" value="' + esc(l.uom || "") + '"' + (rem2 ? " disabled" : "") + ' aria-label="' + esc(name) + ' UOM">') + "</td>" +
+          "<td>" + (pct ? numCell(l.id, "rate", l.rate, rem2, { pct: 1, label: name + " percent of Total" }) : numCell(l.id, "rate", l.rate, rem2, { label: name + " price without GST" })) + "</td><td>" + numCell(l.id, "gstRate", l.gstRate, rem2, { pct: 1, label: name + " GST percent" }) + "</td>" +
+          "<td class='num' style='font-weight:500'>" + (rem2 ? "—" : m(r.base)) + "</td><td class='num' style='color:var(--ink-2)'>" + (rem2 ? "—" : m(r.gst)) + "</td><td class='num' style='color:var(--ink-2)'>" + (rem2 ? "—" : m(r.withGst)) + "</td>" +
+          "<td class='c' style='white-space:nowrap'>" + tag(l.prov.quantity, "quantity", q(l.quantity) + " " + (l.uom || ""), l.id, "quantity") + tag(l.prov.rate, "price", q(l.rate), l.id, "rate") + tag(l.prov.gstRate, "GST", fp2(l.gstRate), l.id, "gstRate") + "</td>" +
+          "<td>" + (rem2 ? '<button class="iconbtn ok" type="button" title="Restore row" data-restoreline="' + esc(l.id) + '">↺</button>' : '<button class="iconbtn" type="button" title="Remove this row from this costing" aria-label="Remove ' + esc(name) + '" data-rmline="' + esc(l.id) + '">🗑</button>') + "</td></tr>";
+        if (isOpen) {
+          var a = l.attributes || {}, names = [["hsCode", "HS Code"], ["duty", "Duty %"], ["fabricType", "Fabric Type"], ["fabricFinish", "Fabric Finish"], ["construction", "Fabric Construction & Content"], ["knitGauge", "Knit Gauge"], ["cuttableWidth", "Cuttable Width"], ["source", "Source"], ["costingScenario", "Costing Scenario"], ["action", "Action"]];
+          h += '<tr><td colspan="11" style="padding:0;text-align:left"><div class="attrs"><div><b>Description</b><input class="cell l" style="border-color:var(--line)" data-k="' + esc(l.id) + '|description" data-line="' + esc(l.id) + '" data-f="description" value="' + esc(l.description || "") + '"></div><div><b>Item Type</b><input class="cell l" style="border-color:var(--line)" data-k="' + esc(l.id) + '|itemType" data-line="' + esc(l.id) + '" data-f="itemType" value="' + esc(l.itemType || "") + '"></div>' +
+            names.map(function (n) { return "<div><b>" + n[1] + '</b><input class="cell l" style="border-color:var(--line)" data-k="' + esc(l.id) + "|a_" + n[0] + '" data-line="' + esc(l.id) + '" data-attr="' + n[0] + '" value="' + esc(a[n[0]] == null ? "" : a[n[0]]) + '"></div>'; }).join("") + "</div></td></tr>";
+        }
+      });
+      h += addRow(11, sec.key);
+    }
+    var main = secs.filter(function (s) { return s.phase === "MAIN"; }), post = secs.filter(function (s) { return s.phase === "POST_TOTAL"; });
+    main.forEach(block);
+    h += '<tr class="tot"><td class="l" colspan="6" style="padding-left:14px">TOTAL <span style="font-weight:400;font-size:11px;color:var(--ink-3)">Σ of the headers above</span></td><td class="num">' + m(R.total.base) + '</td><td class="num" style="font-weight:500">' + m(R.total.gst) + '</td><td class="num">' + m(R.total.withGst) + "</td><td></td><td></td></tr>";
+    post.forEach(block);
+    h += '<tr class="tot strong"><td class="l" colspan="6" style="padding-left:14px">TOTAL COST <span style="font-weight:400;font-size:11px;color:var(--ink-3)">Total + Testing + Garment Rejection + Overhead+Margin</span></td><td class="num">' + m(R.totalCost.base) + '</td><td class="num" style="font-weight:500">' + m(R.totalCost.gst) + '</td><td class="num">' + m(R.totalCost.withGst) + "</td><td></td><td></td></tr></tbody></table></div>";
+    h += '<div style="padding:8px 14px;border-top:1px solid var(--line)">' + (S.addingHeader ? '<span class="inl"><input id="newheader" placeholder="New header (Cost Item category)"><button class="btn pri" type="button" data-addheaderok="1">Add header</button><button class="btn" type="button" data-addheadercancel="1">Cancel</button></span>' : '<button class="addrow" type="button" data-addheader="1">＋ Add header</button>') + "</div>";
+    var f = d.client.finance;
+    h += '<div class="pad" style="border-top:1px solid var(--line)"><div class="lbl">Price build-up</div><div style="max-width:600px"><div class="kv"><b>FOB Price</b><b class="num">' + rs(R.fobPrice) + "</b></div>" +
+      '<div class="kv" style="align-items:center"><span>FINANCE COST <span class="badge warn"' + tip("The reference sheet label reads “FINANCE COST 3%” but its formula is =L43*0. The factor applied is an input here; nothing is applied silently.") + ">label " + Math.round((f.referenceRate || 0) * 100) + '%</span> rate <input class="cell" style="width:70px;display:inline-block" inputmode="decimal" data-k="fin" data-fin="1" value="' + raw(f.rate, 100) + '" aria-label="Finance cost rate percent"> %</span><span class="num">' + rs(R.financeCost) + "</span></div>" +
+      '<div class="kv"><b>FINAL PO PRICE <span style="font-weight:400;color:var(--ink-3)">(FOB − finance cost)</span></b><b class="num">' + rs(R.finalPoPrice) + "</b></div>" +
+      '<div class="kv" style="align-items:center"><span>Transport <input class="cell" style="width:80px;display:inline-block" inputmode="decimal" data-k="trn" data-trn="1" value="' + raw(d.client.transport.amount) + '" aria-label="Transport"></span><span class="num">' + rs(R.transport) + "</span></div>" +
+      '<div class="kv" style="border-top:1px solid var(--line-strong);margin-top:4px;padding-top:8px"><b style="font-size:13px">FINAL PO PRICE INCL TRANSPORT</b><b class="num" style="font-size:16px;color:var(--client)">' + rs(R.finalPoPriceInclTransport) + "</b></div></div></div>";
+    return h;
+  }
+  function fp2(f) { return f == null ? "" : parseFloat((f * 100).toFixed(2)) + "%"; }
+
+  function actualTable() {
+    var d = S.docs.ACTUAL, R = E.calculateActualCost(d), P = d.actual, h = "";
+    h += '<div class="pad" style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;border-bottom:1px solid var(--line)"><div><div class="lbl">Order information</div><div class="tw"><table style="min-width:360px"><thead><tr><th class="l"></th><th>QTY</th><th>RATE</th><th>SALE</th></tr></thead><tbody>' +
+      [["orderPcs", "ORDER PCS", R.orderSale], ["dispatchPcs", "DISPATCH PCS", R.dispatchSale]].map(function (r) { return "<tr><td class='l' style='font-weight:500'>" + r[1] + "</td><td><input class='cell' inputmode='decimal' data-k='" + r[0] + ".qty' data-pcs='" + r[0] + ".qty' value='" + raw(P[r[0]].qty) + "' aria-label='" + r[1] + " quantity'></td><td><input class='cell' inputmode='decimal' data-k='" + r[0] + ".rate' data-pcs='" + r[0] + ".rate' value='" + raw(P[r[0]].rate) + "' aria-label='" + r[1] + " rate'></td><td class='num' style='font-weight:500'>" + m(r[2]) + "</td></tr>"; }).join("") + "</tbody></table></div></div>" +
+      "<div><div class='lbl'>Consumption (m / pc)</div><div style='display:flex;align-items:center;gap:6px;max-width:220px'><input class='cell' inputmode='decimal' data-k='cons' data-cons='1' value='" + raw(P.consumption.value) + "' aria-label='Consumption'>" + (P.consumption.prov ? tag(P.consumption.prov, "consumption", q(P.consumption.value) + " m", "cons", "cons") : "") + "</div><div class='hint'>Per-piece fabric consumption (source label “CONSUPMTION”)." + (R.impliedFabricRequirement != null && R.impliedFabricRequirement > 0 ? " Implied for the order: <b class='num'>" + Math.round(R.impliedFabricRequirement).toLocaleString("en-IN") + " m</b> (reference only; the fabric-order quantity below is what is costed)." : "") + "</div></div></div>";
+    h += '<div class="tw"><table class="t" style="min-width:560px"><colgroup><col><col style="width:110px"><col style="width:100px"><col style="width:130px"><col style="width:84px"><col style="width:36px"></colgroup><thead><tr><th class="l" style="padding-left:14px">Particulars</th><th>QTY</th><th>RATE</th><th>PURCHASE</th><th class="c">Source</th><th></th></tr></thead><tbody>';
+    function block(key, label, note) {
+      var lines = d.lines.filter(function (l) { return l.sectionKey === key && (S.showRemoved || !l.removed); }), rem = (P.removedSections || []).indexOf(key) >= 0;
+      if (rem && !S.showRemoved) return;
+      var t = key === "REJECT" ? R.totalValueLoss : (R.sections.filter(function (x) { return x.key === key; })[0] || {}).total, open = !S.closed[S.mode + key] && !rem;
+      h += secRow("a", key, label, lines.filter(function (l) { return !l.removed; }).length, 3, [rem ? "—" : m(t)], rem, note, true).replace("</tr>", "<td></td><td></td></tr>");
+      if (!open) return;
+      lines.forEach(function (l) {
+        var amt = l.calc === "ENTERED_AMOUNT", rem2 = !!l.removed;
+        h += '<tr class="line' + (rem2 ? " removed" : "") + '"><td class="name l"><span style="padding-left:20px;display:inline-block">' + (l.custom ? '<input class="cell l" style="width:200px" data-k="' + esc(l.id) + '|item" data-line="' + esc(l.id) + '" data-f="item" value="' + esc(l.item) + '"> <span class="badge acc">NEW</span>' : "<span style='font-weight:500'>" + esc(l.item || "(unnamed)") + "</span>") + "</span></td><td>" + (amt ? '<span style="color:var(--ink-3);font-size:11px;display:block;text-align:right;padding-right:6px">amount</span>' : numCell(l.id, "quantity", l.quantity, rem2, { label: l.item + " quantity" })) + "</td><td>" + (amt ? "" : numCell(l.id, "rate", l.rate, rem2, { label: l.item + " rate" })) + "</td><td>" + (amt ? numCell(l.id, "amount", l.amount, rem2, { label: l.item + " amount" }) : "<div class='num' style='text-align:right;padding-right:6px;font-weight:500'>" + (rem2 ? "—" : m(R.lineTotals[l.id])) + "</div>") + "</td><td class='c' style='white-space:nowrap'>" + tag(l.prov.quantity, "quantity", q(l.quantity), l.id, "quantity") + tag(l.prov.rate, "rate", q(l.rate), l.id, "rate") + "</td><td>" + (rem2 ? '<button class="iconbtn ok" type="button" title="Restore row" data-restoreline="' + esc(l.id) + '">↺</button>' : '<button class="iconbtn" type="button" title="Remove this row from this costing" aria-label="Remove ' + esc(l.item) + '" data-rmline="' + esc(l.id) + '">🗑</button>') + "</td></tr>";
+      });
+      if (key !== "LD_CHARGES") h += addRow(6, key);
+    }
+    function sum(label, hint, val, strong) { h += '<tr class="tot' + (strong ? " strong" : "") + '"><td class="l" colspan="3" style="padding-left:14px">' + label + ' <span style="font-weight:400;font-size:11px;color:var(--ink-3)">' + hint + '</span></td><td class="num">' + val + "</td><td></td><td></td></tr>"; }
+    block("FABRIC_ORDER", "FABRIC ORDER", "Total fabric cost");
+    block("CMT", "CMT", "");
+    block("TRIMS", "TRIMS", "Total trims cost");
+    block("LD_CHARGES", "LD CHARGES", "");
+    sum("TOTAL COST", "trims + fabric + CMT + LD charges − deduction", rs(R.totalCost), true);
+    sum("COST PER PC", "Total Cost ÷ DISPATCH PCS (" + q(P.dispatchPcs.qty) + ")", R.costPerPc == null ? "— (enter dispatch pcs)" : rs(R.costPerPc), true);
+    sum("PROFIT", "DISPATCH sale − Total Cost", '<span style="color:' + (R.profit < 0 ? "var(--bad)" : "var(--ok)") + '">' + rs(R.profit) + "</span>");
+    sum("PER PC PROFIT", "profit % " + pc(R.profitPct), R.perPcProfit == null ? "—" : '<span style="color:' + (R.perPcProfit < 0 ? "var(--bad)" : "var(--ok)") + '">' + rs(R.perPcProfit) + "</span>");
+    block("REJECT", "REJECT", "Total Value Loss");
+    sum("% VALUE LOSS", "Total Value Loss ÷ Total Cost × 100", pc(R.valueLossPct));
+    return h + "</tbody></table></div>";
+  }
+
+  /* ───────── other tabs ───────── */
+  function comparison() {
+    var A = S.docs.ACTUAL, C = S.docs.CLIENT, ra = E.calculateActualCost(A), rc = E.calculateClientCost(C), cmp = E.compareCostings(A, ra, C, rc, RULES), T2 = cmp.totals, h = "";
+    h += '<div class="pad" style="display:grid;gap:14px">';
+    if (!touched(A) || !touched(C)) h += '<div class="note"><b>' + (!touched(A) && !touched(C) ? "Neither costing has values yet." : !touched(A) ? "The Actual costing has no values yet." : "The Client costing has no values yet.") + "</b> Enter quantities and rates in both modes; this view updates live and compares the same style group by group.</div>";
+    h += '<div class="kpis"><div class="kpi a"><div class="k" style="color:var(--actual)">Actual cost / pc</div><div class="v num">' + rs(T2.actualPerPc) + '</div><div class="s num">Total ' + rs(T2.actualTotal) + '</div></div><div class="kpi c"><div class="k" style="color:var(--client)">Client cost / pc</div><div class="v num">' + rs(T2.clientPerPc) + '</div><div class="s num">Final PO incl. transport ' + rs(cmp.clientPriceChain.finalPoPriceInclTransport) + '</div></div><div class="kpi"><div class="k">Difference / pc</div><div class="v num">' + rs(T2.differencePerPc, true) + '</div><div class="s num">Total ' + rs(T2.differenceTotal, true) + '</div></div><div class="kpi"><div class="k">Client premium</div><div class="v num">' + pc(T2.premiumPct) + '</div><div class="s">(client − actual) ÷ actual</div></div></div>';
+    h += '<div class="tw" style="border:1px solid var(--line);border-radius:8px"><table style="min-width:760px"><thead><tr style="background:var(--surface-2)"><th class="l" style="padding-left:12px">Group</th><th style="color:var(--actual)">Actual / pc</th><th style="color:var(--client)">Client / pc</th><th>Difference</th><th>Premium</th><th>Actual total</th><th>Client total</th><th>Difference</th></tr></thead><tbody>';
+    cmp.rows.forEach(function (r) {
+      var o = S.cmpOpen[r.group], col = r.differencePerPc > 0.005 ? "var(--client)" : r.differencePerPc < -0.005 ? "var(--bad)" : "var(--ink-3)";
+      h += '<tr class="line"><td class="l" style="padding-left:12px"><button class="chev" data-cmp="' + esc(r.group) + '" type="button" aria-expanded="' + !!o + '">' + (o ? "▾" : "▸") + "</button><span style='font-weight:500'>" + esc(r.group) + "</span></td><td class='num'>" + m(r.actualPerPc) + "</td><td class='num'>" + m(r.clientPerPc) + "</td><td class='num' style='color:" + col + ";font-weight:500'>" + m(r.differencePerPc) + "</td><td class='num' style='color:var(--ink-2)'>" + (r.premiumPct == null ? "—" : pc(r.premiumPct, 1)) + "</td><td class='num'>" + m(r.actualTotal) + "</td><td class='num'>" + m(r.clientTotal) + "</td><td class='num' style='color:" + col + "'>" + m(r.differenceTotal) + "</td></tr>";
+      if (o) h += '<tr><td colspan="8" style="text-align:left;background:var(--surface-2);padding:6px 12px 6px 36px;font-size:11.5px;color:var(--ink-2)"><b style="color:var(--actual)">Actual rows:</b> ' + (r.actualLineIds.length ? esc(r.actualLineIds.map(function (i) { return i.split(":")[1]; }).join(", ").replace(/_/g, " ")) : "—") + " &nbsp;·&nbsp; <b style='color:var(--client)'>Client rows:</b> " + (r.clientLineIds.length ? esc(r.clientLineIds.map(function (i) { return i.split(":")[1]; }).join(", ").replace(/_/g, " ")) : "—") + "</td></tr>";
+    });
+    h += '<tr class="tot strong"><td class="l" style="padding-left:12px">TOTAL</td><td class="num">' + m(T2.actualPerPc) + '</td><td class="num">' + m(T2.clientPerPc) + '</td><td class="num">' + m(T2.differencePerPc) + '</td><td class="num">' + pc(T2.premiumPct, 1) + '</td><td class="num">' + m(T2.actualTotal) + '</td><td class="num">' + m(T2.clientTotal) + '</td><td class="num">' + m(T2.differenceTotal) + "</td></tr></tbody></table></div>";
+    var M = cmp.margin;
+    h += '<div class="grid2"><div class="card pad"><div class="lbl">Margin / profit: two separate economics</div><div class="kv"><span>Actual · sale rate / pc</span><b class="num">' + rs(M.actualSaleRatePerPc) + '</b></div><div class="kv"><span>Actual · PER PC PROFIT</span><b class="num">' + rs(M.actualPerPcProfit) + '</b></div><div class="kv"><span>Actual · profit %</span><b class="num">' + pc(M.actualProfitPct) + '</b></div><div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span>Client · Overhead+Margin / pc</span><b class="num">' + rs(M.clientOverheadMarginPerPc) + '</b></div><div class="hint">Actual profit is realised sale minus actual cost. The client Overhead+Margin row is part of the quoted price. They are never netted.</div></div>' +
+      '<div class="card pad"><div class="lbl">Client price chain / pc</div><div class="kv"><span>Total Cost = FOB Price</span><b class="num">' + rs(cmp.clientPriceChain.fobPrice) + '</b></div><div class="kv"><span>Finance cost</span><span class="num">' + rs(cmp.clientPriceChain.financeCost) + '</span></div><div class="kv"><span>FINAL PO PRICE</span><b class="num">' + rs(cmp.clientPriceChain.finalPoPrice) + '</b></div><div class="kv"><span>Transport</span><span class="num">' + rs(cmp.clientPriceChain.transport) + '</span></div><div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><b>FINAL PO PRICE Incl Transport</b><b class="num">' + rs(cmp.clientPriceChain.finalPoPriceInclTransport) + "</b></div></div></div>";
+    h += '<ul class="hint" style="margin:0;padding-left:16px">' + cmp.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul></div>";
+    return h;
+  }
+  function chain(d) { var r = calc(d), steps = E.explainCosting(d, r); return '<div class="pad"><div class="lbl">Calculation chain · ' + (d.type === "ACTUAL" ? "actual costing" : "client costing") + '</div><div class="tw"><table style="min-width:560px"><tbody>' + steps.map(function (s) { return '<tr' + (s.emphasis ? ' style="background:var(--accent-soft)"' : "") + "><td class='l' style='font-weight:" + (s.emphasis ? 700 : 500) + "'>" + esc(s.label) + "</td><td class='l mono'>" + esc(s.formula) + (s.note ? " <span style='color:var(--warn);font-family:var(--font)'>" + esc(s.note) + "</span>" : "") + "</td><td class='num' style='font-weight:" + (s.emphasis ? 700 : 600) + "'>" + (s.value == null ? "—" : s.kind === "percent" ? pc(s.value) : rs(s.value)) + "</td></tr>"; }).join("") + "</tbody></table></div>" + overridesBlock(d) + "</div>"; }
+  function overridesBlock(d) { var o = E.listOverrides(d); return '<div class="lbl" style="margin-top:14px">Manual overrides (' + o.length + ")</div>" + (o.length ? o.map(function (x) { return '<div class="kv"><span>' + esc(x.item || x.lineId) + " · " + x.field + '</span><span class="num"><b>' + esc(x.value) + "</b> <span style='color:var(--ink-3)'>was [" + esc(x.original ? ORIGIN[x.original.origin] : "?") + "] " + esc(x.original && x.original.value != null ? x.original.value : "blank") + "</span></span></div>"; }).join("") : '<div class="hint" style="margin:0">None. Values you type into an empty cell are plain entries; changing a CAD or template value records an override and keeps the original.</div>'); }
+  function checks(d) { var is = issuesOf(d); if (!is.length) return '<div class="empty"><b>No issues found</b>Critical inputs are present and consistent.</div>'; return '<ul class="list">' + is.map(function (i) { return '<li><span class="badge ' + (i.level === "error" ? "bad" : "warn") + '">' + esc(i.code) + "</span><span>" + esc(i.message) + "</span></li>"; }).join("") + "</ul>"; }
+  function versions() {
+    var list = S.saved[S.mode], r = calc(doc());
+    var dirty = !list.length || E.diffCostings(list[list.length - 1].doc, doc()).length;
+    var h = '<div class="pad"><p class="hint" style="margin:0 0 10px">Every save is a new version; earlier versions are never overwritten. In the full application versions are stored in the database with user, date and audit trail.</p>';
+    if (!list.length) h += '<div class="empty" style="padding:20px"><b>No saved versions yet</b>Enter values, then save to create version 1.</div>';
+    else h += '<div class="tw"><table style="min-width:520px"><thead><tr><th class="l">Version</th><th class="l">Saved</th><th>' + (S.mode === "ACTUAL" ? "Cost / pc" : "FOB / pc") + '</th><th class="l">Changed fields</th><th></th></tr></thead><tbody>' + list.slice().reverse().map(function (v) { return "<tr><td class='l' style='font-weight:600'>v" + v.no + "</td><td class='l'>" + esc(v.at) + "</td><td class='num'>" + rs(v.total) + "</td><td class='l' style='color:var(--ink-2)'>" + v.changes + " field" + (v.changes === 1 ? "" : "s") + (v.note ? " · “" + esc(v.note) + "”" : "") + "</td><td><button class='btn' type='button' data-openver='" + v.no + "'>Open</button></td></tr>"; }).join("") + "</tbody></table></div>";
+    return h + '<div style="margin-top:12px"><button class="btn pri" type="button" id="savever"' + (dirty ? "" : " disabled") + ">" + (list.length ? "Save version " + (list.length + 1) : "Save as v1") + "</button> <span class='hint'>" + (dirty ? "" : "No changes since the last version.") + "</span></div></div>";
+  }
+
+  /* ───────── render ───────── */
+  var TABS = [["costing", "Costing"], ["comparison", "Comparison"], ["chain", "Calculation"], ["checks", "Checks"], ["versions", "Versions"]];
+  function snapshot() { var a = document.activeElement; return a && a.dataset && a.dataset.k ? { k: a.dataset.k, s: a.selectionStart, e: a.selectionEnd } : (a && a.id && (a.id === "newrow" || a.id === "newheader" || a.id === "cadedit") ? { id: a.id, s: a.selectionStart, e: a.selectionEnd } : null); }
+  function restore(f) { if (!f) return; var el = f.k ? document.querySelector('[data-k="' + (window.CSS && CSS.escape ? CSS.escape(f.k) : f.k) + '"]') : document.getElementById(f.id); if (el) { el.focus(); try { el.setSelectionRange(f.s, f.e); } catch (e) { /* not selectable */ } } }
+  function renderSoft() { var f = snapshot(); renderMain(); restore(f); persist(); }
+  function render() { var f = snapshot(); renderMain(); restore(f); persist(); }
+  function renderMain() {
+    var si = $("style"); if (document.activeElement !== si) si.value = S.no;
+    var ci = $("customer"); if (document.activeElement !== ci) ci.value = S.customer;
+    $("category").value = S.category || "";
+    $("stylehint").textContent = S.no ? "" : "Type the style number (or upload its CAD).";
+    $("stylechips").innerHTML = S.order.map(function (id) { var r = id === S.id ? S : S.styles[id]; return '<button type="button" class="chip" data-sid="' + id + '"' + (id === S.id ? ' style="background:var(--accent-soft);color:var(--accent);border-color:var(--accent)"' : "") + ">" + esc(r.no || "(new)") + "</button>"; }).join("");
+    $("mA").setAttribute("aria-selected", S.mode === "ACTUAL"); $("mC").setAttribute("aria-selected", S.mode === "CLIENT");
+    var rail0 = railEl.scrollTop; railEl.innerHTML = rail(); railEl.scrollTop = rail0;
+    $("strip").innerHTML = strip();
+    var nIss = issuesOf(doc()).length;
+    $("tabs").innerHTML = TABS.map(function (t) { return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '">' + t[1] + (t[0] === "checks" && nIss ? '<span class="n">' + nIss + "</span>" : "") + "</button>"; }).join("");
+    var d = doc(), h = "";
+    if (S.tab === "costing") {
+      var list = S.saved[S.mode], dirty = !list.length || E.diffCostings(list[list.length - 1].doc, d).length;
+      h = '<div class="bar"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="badge ' + (S.mode === "ACTUAL" ? "a" : "c") + '">' + S.mode + " COSTING</span><b>" + esc(S.no || "—") + "</b>" + (list.length ? "<span style='color:var(--ink-3)'>v" + list.length + (dirty ? " · unsaved changes" : "") + "</span>" : '<span class="badge warn">New costing · not saved yet</span>') + '</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" type="button" id="toggleremoved">' + (S.showRemoved ? "Hide" : "Show") + ' removed</button><button class="btn" type="button" id="startover">Start over</button>' + (DL ? '<button class="btn" type="button" id="expx">Export Excel</button><button class="btn" type="button" id="expp">Export PDF</button>' : "") + '<button class="btn pri" type="button" id="savever2"' + (dirty ? "" : " disabled") + ">" + (list.length ? "Save version" : "Save as v1") + "</button></div></div>" + (S.mode === "ACTUAL" ? actualTable() : clientTable()) +
+        '<div class="legend"><span class="tag CAD">CAD</span> taken from the CAD <span class="tag OVERRIDE">OVR</span> override (original kept, ↺ reverts) <span class="tag TEMPLATE">TPL</span> default from the template <span class="tag MASTER">RULE</span> from the category</div>';
+    } else if (S.tab === "comparison") h = comparison();
+    else if (S.tab === "chain") h = chain(d);
+    else if (S.tab === "checks") h = checks(d);
+    else h = versions();
+    $("pane").innerHTML = h;
+  }
+
+  /* ───────── editing ───────── */
+  var paneEl = $("pane");
+  paneEl.addEventListener("input", function (e) {
+    var t = e.target, d = doc(), v, id = t.dataset.line;
+    if (t.dataset.line && t.dataset.f) {
+      var f = t.dataset.f;
+      if (f === "uom" || f === "description" || f === "item") v = t.value; else {
+        var rawv = t.value.replace(/,/g, "").trim(); if (rawv === "" || rawv === "-") v = null; else { v = Number(rawv); if (!isFinite(v) || /\.$/.test(rawv)) return; if (t.dataset.pct) v = v / 100; }
+      }
+      if (f === "uom" && v === "") v = null;
+      setDocSoft(E.setLineField(d, id, f, v, { by: "you" }));
+    } else if (t.dataset.attr) {
+      setDocSoft(Object.assign({}, d, { lines: d.lines.map(function (l) { if (l.id !== id) return l; var a = Object.assign({}, l.attributes); a[t.dataset.attr] = t.value === "" ? null : t.value; return Object.assign({}, l, { attributes: a }); }) }));
+    } else if (t.dataset.pcs) {
+      var p = t.dataset.pcs.split("."), rawp = t.value.replace(/,/g, "").trim(), vv = rawp === "" ? null : Number(rawp); if (vv !== null && (!isFinite(vv) || /\.$/.test(rawp))) return;
+      var a = Object.assign({}, d.actual), g = Object.assign({}, a[p[0]]); g[p[1]] = vv; a[p[0]] = g; setDocSoft(Object.assign({}, d, { actual: a }));
+    } else if (t.dataset.cons) {
+      var rc = t.value.replace(/,/g, "").trim(), cv = rc === "" ? null : Number(rc); if (cv !== null && (!isFinite(cv) || /\.$/.test(rc))) return;
+      var prev = d.actual.consumption, pp = prev.prov, prov;
+      if (pp && pp.origin !== "MANUAL" && prev.value != null) prov = pp.origin === "OVERRIDE" && pp.original && pp.original.value === cv ? { origin: pp.original.origin, ref: pp.original.ref } : { origin: "OVERRIDE", original: pp.origin === "OVERRIDE" ? pp.original : { value: prev.value, origin: pp.origin, ref: pp.ref }, at: new Date().toISOString(), by: "you" };
+      else prov = { origin: "MANUAL", at: new Date().toISOString(), by: "you" };
+      setDocSoft(Object.assign({}, d, { actual: Object.assign({}, d.actual, { consumption: { value: cv, prov: prov } }) }));
+    } else if (t.dataset.fin) {
+      var rf = t.value.replace(/,/g, "").trim(), fv = rf === "" ? 0 : Number(rf); if (!isFinite(fv) || /\.$/.test(rf)) return;
+      setDocSoft(Object.assign({}, d, { client: Object.assign({}, d.client, { finance: Object.assign({}, d.client.finance, { rate: fv / 100 }) }) }));
+    } else if (t.dataset.trn) {
+      var rt = t.value.replace(/,/g, "").trim(), tv = rt === "" ? 0 : Number(rt); if (!isFinite(tv) || /\.$/.test(rt)) return;
+      setDocSoft(Object.assign({}, d, { client: Object.assign({}, d.client, { transport: { amount: tv } }) }));
+    }
+  });
+  function setDocSoft(d) { S.docs[S.mode] = d; renderSoft(); }
+  paneEl.addEventListener("click", function (e) {
+    var b, d = doc();
+    if ((b = e.target.closest("[data-sec]"))) { var k = S.mode + b.dataset.sec; S.closed[k] = !S.closed[k]; return render(); }
+    if ((b = e.target.closest("[data-row]"))) { S.open[b.dataset.row] = !S.open[b.dataset.row]; return render(); }
+    if ((b = e.target.closest("[data-cmp]"))) { S.cmpOpen[b.dataset.cmp] = !S.cmpOpen[b.dataset.cmp]; return render(); }
+    if ((b = e.target.closest("[data-tab]"))) { S.tab = b.dataset.tab; return render(); }
+    if ((b = e.target.closest("[data-rmsec]"))) { setDoc(E.removeSection(d, b.dataset.rmsec)); return toast("Header removed", "Its rows no longer count in this costing. Use “Show removed” or “Restore header” to bring it back."); }
+    if ((b = e.target.closest("[data-restoresec]"))) return setDoc(E.restoreSection(d, b.dataset.restoresec));
+    if ((b = e.target.closest("[data-rmline]"))) return setDoc(E.removeLine(d, b.dataset.rmline));
+    if ((b = e.target.closest("[data-restoreline]"))) return setDoc(E.restoreLine(d, b.dataset.restoreline));
+    if ((b = e.target.closest("[data-revert]"))) { var p = b.dataset.revert.split("|"); if (p[1] === "cons") { var c = d.actual.consumption.prov; if (c && c.original) setDoc(Object.assign({}, d, { actual: Object.assign({}, d.actual, { consumption: { value: c.original.value, prov: { origin: c.original.origin, ref: c.original.ref } } }) })); } else setDoc(E.revertOverride(d, p[0], p[1])); return; }
+    if ((b = e.target.closest("[data-add]"))) { S.adding = b.dataset.add; render(); var i = $("newrow"); if (i) i.focus(); return; }
+    if (e.target.closest("[data-addcancel]")) { S.adding = null; return render(); }
+    if ((b = e.target.closest("[data-addok]"))) return addRowOk(b.dataset.addok);
+    if (e.target.closest("[data-addheader]")) { S.addingHeader = true; render(); var h = $("newheader"); if (h) h.focus(); return; }
+    if (e.target.closest("[data-addheadercancel]")) { S.addingHeader = false; return render(); }
+    if (e.target.closest("[data-addheaderok]")) return addHeaderOk();
+    if (e.target.closest("#toggleremoved")) { S.showRemoved = !S.showRemoved; return render(); }
+    if (e.target.closest("#startover")) { S.docs[S.mode] = fresh(S.mode); S.closed = {}; S.open = {}; toast("Started over", "All default rows are back and empty."); return render(); }
+    if (e.target.closest("#savever") || e.target.closest("#savever2")) return saveVersion();
+    if (e.target.closest("#expx")) return doExport("xlsx");
+    if (e.target.closest("#expp")) return doExport("pdf");
+    if ((b = e.target.closest("[data-openver]"))) { var v = S.saved[S.mode].filter(function (x) { return x.no === Number(b.dataset.openver); })[0]; if (v) { S.docs[S.mode] = clone(v.doc); S.tab = "costing"; toast("Version " + v.no + " opened", "Saving creates a new version; v" + v.no + " is never changed."); render(); } }
+  });
+  paneEl.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "newrow") addRowOk(e.target.dataset.addto); if (e.key === "Enter" && e.target.id === "newheader") addHeaderOk(); if (e.key === "Escape" && (e.target.id === "newrow" || e.target.id === "newheader")) { S.adding = null; S.addingHeader = false; render(); } });
+  function addRowOk(key) {
+    var name = ($("newrow").value || "").trim(); S.adding = null; if (!name) return render();
+    var d = doc(), sample = d.lines.filter(function (l) { return l.sectionKey === key; })[0], label = sample ? sample.sectionLabel : key;
+    setDoc(E.addLine(d, { id: "custom:" + key + ":" + uid(), sectionKey: key, sectionLabel: label, item: name, description: "", itemType: null, quantity: null, uom: null, rate: null, gstRate: null, currency: "INR", calc: "QTY_X_RATE", attributes: {}, prov: {} }));
+  }
+  function addHeaderOk() { var name = ($("newheader").value || "").trim(); S.addingHeader = false; if (!name) return render(); setDoc(E.addClientSection(doc(), name)); toast("Header added", "Add components to it with “Add component”."); }
+  function saveVersion() {
+    var list = S.saved[S.mode], prev = list.length ? list[list.length - 1].doc : null, ch = E.diffCostings(prev, doc()), r = calc(doc());
+    if (prev && !ch.length) return;
+    list.push({ no: list.length + 1, at: new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }), doc: clone(doc()), total: S.mode === "ACTUAL" ? r.costPerPc : r.totalCost.base, changes: ch.length });
+    toast("Saved " + (S.mode === "ACTUAL" ? "Actual" : "Client") + " costing v" + list.length, "A new version was created; earlier versions are untouched."); render();
+  }
+
+  /* ───────── export (Excel / PDF made by the same code as the application) ───────── */
+  function b64u8(b64) { var bin = atob(b64), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  function photoBytes() { if (!S.photo) return null; var mm = /^data:(image\/[a-z]+);base64,(.*)$/.exec(S.photo); return mm ? { bytes: b64u8(mm[2]), mime: mm[1] } : null; }
+  function exportInput() {
+    var d = doc(), o = S.docs[S.mode === "ACTUAL" ? "CLIENT" : "ACTUAL"], list = S.saved[S.mode];
+    return { doc: d, style: { number: S.no || "style" }, customer: S.customer || null, brand: null, category: S.category || null, versionNo: list.length || null, unsaved: !list.length || E.diffCostings(list[list.length - 1].doc, d).length > 0, user: "Simulator", cad: S.cad, image: photoBytes(), other: touched(o) ? { doc: o, paired: false } : null, rules: RULES, at: new Date() };
+  }
+  function doExport(fmt) {
+    if (!DL) return;
+    var i = exportInput();
+    var work = fmt === "xlsx" ? E.exportExcel(i) : E.exportPdf(i, { regular: b64u8(window.FONTS_B64.r), bold: b64u8(window.FONTS_B64.b) });
+    return work.then(function (bytes) { return DL.save({ filename: (S.no || "style") + "_" + S.mode.toLowerCase() + "_costing." + fmt, data: bytes }); }).then(function () { toast("File ready", "Saved " + (fmt === "xlsx" ? "Excel" : "PDF") + " for style " + S.no + "."); }).catch(function (e) { if (e && e.code === "declined") return; toast("Export failed", (e && e.message) || "Could not create the file.", true); });
+  }
+  window.__exportTest = function (fmt) { var i = exportInput(); return fmt === "xlsx" ? E.exportExcel(i) : E.exportPdf(i, { regular: b64u8(window.FONTS_B64.r), bold: b64u8(window.FONTS_B64.b) }); };
+
+  load(); render();
+  if (window.claude && window.claude.use) window.claude.use("downloads").then(function (d) { if (d) { DL = d; render(); } }).catch(function () { /* exports unavailable in this view */ });
+})();
+</script>

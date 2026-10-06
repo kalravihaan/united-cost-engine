@@ -14,7 +14,8 @@
     "db:push": "prisma db push",
     "db:seed": "tsx scripts/seed.ts",
     "setup:local": "prisma db push && tsx scripts/seed.ts",
-    "template": "tsx scripts/rebuild-template.ts"
+    "template": "tsx scripts/rebuild-template.ts",
+    "simulator:build": "node simulator/build.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

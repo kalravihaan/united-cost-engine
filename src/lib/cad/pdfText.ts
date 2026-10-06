@@ -22,9 +22,16 @@ export interface PdfText {
 
 export async function extractPdfText(data: Uint8Array | Buffer): Promise<PdfText> {
   // legacy build = Node compatible
-  const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as {
-    getDocument: (o: unknown) => { promise: Promise<PdfDoc> };
-  };
+  const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as PdfJsLike;
+  return extractWithPdfjs(pdfjs, data);
+}
+
+export interface PdfJsLike {
+  getDocument: (o: unknown) => { promise: Promise<PdfDoc> };
+}
+
+/** Same extraction for any pdf.js build (Node server, or the browser bundle used by the standalone preview). */
+export async function extractWithPdfjs(pdfjs: PdfJsLike, data: Uint8Array | Buffer): Promise<PdfText> {
   const doc = await pdfjs.getDocument({ data: new Uint8Array(data), useSystemFonts: true, isEvalSupported: false, disableFontFace: true }).promise;
   const pages: PdfText["pages"] = [];
   let order = 0;
