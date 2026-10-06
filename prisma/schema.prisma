@@ -23,7 +23,7 @@ enum CostingType {
 }
 
 enum VersionSource {
-  IMPORT // read from a source workbook
+  IMPORT // legacy: read from a workbook
   TEMPLATE // started from another costing
   MANUAL // saved from the UI
 }
@@ -251,7 +251,6 @@ model CostingVersion {
   sourceKind    VersionSource
   sourceFile    String?
   sourceSheet   String?
-  importBatchId String?
   /// normalized CostingDoc (lines, per-field provenance, overrides, CAD snapshot)
   doc           Json
   /// engine output at save time
@@ -268,25 +267,22 @@ model CostingVersion {
   createdAt     DateTime      @default(now())
   calculatedAt  DateTime      @default(now())
   costing       Costing       @relation(fields: [costingId], references: [id])
-  importBatch   ImportBatch?  @relation(fields: [importBatchId], references: [id])
 
   @@unique([costingId, versionNo])
   @@index([costingId, createdAt])
 }
 
-model ImportBatch {
-  id         String           @id @default(cuid())
-  kind       CostingType
-  fileName   String
-  sha256     String
-  fileId     String?
-  sheetCount Int
-  created    Int
-  skipped    Int
-  report     Json
-  createdBy  String
-  createdAt  DateTime         @default(now())
-  versions   CostingVersion[]
+/// Default costing structure per mode: every header and row a new costing starts with (no values).
+/// Built from the reference workbooks, then edited in Masters → Costing Templates.
+model CostTemplate {
+  id          String      @id @default(cuid())
+  costingType CostingType @unique
+  version     Int         @default(1)
+  /// CostingDoc with the default sections/lines and no quantities or rates
+  doc         Json
+  source      String?
+  updatedBy   String
+  updatedAt   DateTime    @updatedAt
 }
 
 model AuditEvent {

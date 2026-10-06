@@ -1,5 +1,10 @@
 # Data model & field mapping
 
+> **Role of the source files.** The three files are **reference material**: they define the structure, terminology and formulas the
+> engine must reproduce. The engine is the system of record; costing values are entered in it and Excel/PDF are outputs. Only the CAD
+> is an input at run time. The workbooks' own numbers are used solely to verify the calculation engine (tests) and to learn the default
+> headers/rows (`src/lib/parsers/templateBuilder.ts`).
+
 This document is the output of the source-file study (Phase 1) and the mapping
 (Phase 2). Every statement below was verified against the three source files in
 `data/sources/` and is re-verified by the automated tests in `tests/`.

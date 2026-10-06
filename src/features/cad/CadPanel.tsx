@@ -110,7 +110,7 @@ export function CadPanel({ ws, enteredStyle, onChanged, onApply, applyPreview, c
             <div className="rounded-md border border-line bg-surface-2 p-2.5">
               <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">CAD → Costing</div>
               {applyPreview.length === 0 ? (
-                <div className="text-[12px] text-ink-3">{canApply ? "Nothing to feed: no matching cost line, or the CAD value needs verification first." : "Open a costing to feed CAD values into it."}</div>
+                <div className="text-[12px] text-ink-3">{canApply ? "Nothing left to feed: the CAD value is already in the costing, no line matches, or it needs verification first." : "Open a costing to feed CAD values into it."}</div>
               ) : (
                 <ul className="space-y-1">
                   {applyPreview.map((p) => (

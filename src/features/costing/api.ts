@@ -126,22 +126,11 @@ export const api = {
   masterCreate: (name: string, b: Record<string, unknown>) => req<Record<string, unknown>>(`/api/masters/${name}`, { method: "POST", body: JSON.stringify(b) }),
   masterUpdate: (name: string, id: string, b: Record<string, unknown>) => req<Record<string, unknown>>(`/api/masters/${name}/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
   masterDelete: (name: string, id: string) => req<{ ok: true }>(`/api/masters/${name}/${id}`, { method: "DELETE" }),
-  importWorkbook: (kind: "actual" | "client", file: File) => {
+  template: (type: "ACTUAL" | "CLIENT") => req<{ type: string; version: number; doc: CostingDoc; source: string | null; updatedBy: string; updatedAt: string }>(`/api/cost-templates/${type}`),
+  saveTemplate: (type: "ACTUAL" | "CLIENT", doc: CostingDoc) => req<{ version: number }>(`/api/cost-templates/${type}`, { method: "PUT", body: JSON.stringify({ doc }) }),
+  rebuildTemplate: (type: "ACTUAL" | "CLIENT", file: File) => {
     const f = new FormData();
     f.set("file", file);
-    return req<ImportReportDto>(`/api/imports/${kind}`, { method: "POST", body: f });
+    return req<{ type: string; version: number; lines: number; sections: number }>(`/api/cost-templates/${type}/rebuild`, { method: "POST", body: f });
   },
-  imports: () => req<Array<{ id: string; kind: string; fileName: string; sheetCount: number; created: number; skipped: number; createdBy: string; createdAt: string; report: ImportReportDto }>>("/api/imports"),
 };
-
-export interface ImportReportDto {
-  batchId: string;
-  kind: string;
-  fileName: string;
-  sheets: number;
-  created: number;
-  skipped: number;
-  stylesCreated: number;
-  issues: Array<{ level: string; code: string; message: string }>;
-  perSheet: Array<{ sheet: string; style: string; status: string; version?: number; note?: string }>;
-}

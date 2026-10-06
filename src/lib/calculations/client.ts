@@ -81,14 +81,14 @@ export function calculateClientCost(doc: ClientCosting): ClientResult {
   const finalPoPrice = calculateFinalPOPrice(fobPrice, financeCost);
   const transport = n(doc.client.transport.amount);
 
-  const sections = doc.client.sections.map((s) => {
+  const sections = doc.client.sections.filter((s) => !s.removed).map((s) => {
     const ls = lines.filter((l) => l.sectionKey === s.key);
     const t = agg(ls);
     return { key: s.key, label: s.label, phase: s.phase, total: t.base, gst: t.gst, withGst: t.withGst, lineIds: ls.map((l) => l.id) };
   });
   // lines whose section is not declared (custom category) – keep them visible
   for (const key of new Set(lines.map((l) => l.sectionKey))) {
-    if (!sections.find((s) => s.key === key)) {
+    if (!sections.find((s) => s.key === key) && !doc.client.sections.some((s) => s.key === key)) {
       const ls = lines.filter((l) => l.sectionKey === key);
       const t = agg(ls);
       sections.push({ key, label: ls[0].sectionLabel, phase: "MAIN", total: t.base, gst: t.gst, withGst: t.withGst, lineIds: ls.map((l) => l.id) });

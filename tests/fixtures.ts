@@ -5,8 +5,8 @@ import { parseClientWorkbook, type ParsedClientWorkbook } from "@/lib/parsers/cl
 import { parseCadPdf } from "@/lib/cad/cadParser";
 import { loadWorkbook } from "@/lib/parsers/workbook";
 
-const root = path.resolve(__dirname, "..", "data", "sources");
-export const sourcePath = (f: string) => path.join(root, f);
+const root = path.resolve(__dirname, "..", "data", "reference");
+export const sourcePath = (f: string) => (f.endsWith(".pdf") ? path.join(__dirname, "fixtures", f) : path.join(root, f));
 
 let actual: Promise<ParsedActualWorkbook> | null = null;
 let client: Promise<ParsedClientWorkbook> | null = null;

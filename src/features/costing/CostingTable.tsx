@@ -2,7 +2,7 @@
 import * as React from "react";
 import { ChevronDown, ChevronRight, Plus, RotateCw, Trash2, Info } from "lucide-react";
 import type { ActualCosting, ActualResult, ClientCosting, ClientResult, CostLine, CostingDoc, LineField, ValidationIssue } from "@/types/costing";
-import { addLine, removeLine, restoreLine, revertOverride, setLineField } from "@/lib/calculations";
+import { addClientSection, addLine, isSectionRemoved, removeLine, removeSection, restoreLine, restoreSection, revertOverride, setLineField } from "@/lib/calculations";
 import { slug } from "@/lib/normalization/labels";
 import { cn, dateTime, money, rupee, pct } from "@/lib/format";
 import { Badge, Button } from "@/components/ui/primitives";
@@ -15,6 +15,8 @@ type Edit<T extends CostingDoc> = (fn: (d: T) => T) => void;
 
 interface BaseProps {
   readOnly?: boolean;
+  /** template editing: only structure (rows, headers, UOM, GST) is editable; quantities and rates are not */
+  structure?: boolean;
   uoms: string[];
   issues: ValidationIssue[];
   showRemoved: boolean;
@@ -71,17 +73,29 @@ function SourceMark({ line }: { line: CostLine }) {
   );
 }
 
-function SectionHeader({ label, count, collapsed, onToggle, accent, span, cells, trail, note }: { label: string; count: number; collapsed: boolean; onToggle: () => void; accent: "actual" | "client"; span: number; cells: React.ReactNode[]; trail: number; note?: string }) {
+function SectionHeader({ label, count, collapsed, onToggle, accent, span, cells, trail, note, removed, onRemove, onRestore }: { label: string; count: number; collapsed: boolean; onToggle: () => void; accent: "actual" | "client"; span: number; cells: React.ReactNode[]; trail: number; note?: string; removed?: boolean; onRemove?: () => void; onRestore?: () => void }) {
   return (
     <tr className="border-y border-line bg-surface-2">
       <td colSpan={span} className="px-2 py-1.5">
         <div className="flex items-center gap-3">
           <button onClick={onToggle} className="flex items-center gap-1.5 text-left" aria-expanded={!collapsed}>
             {collapsed ? <ChevronRight size={14} className="text-ink-3" /> : <ChevronDown size={14} className="text-ink-3" />}
-            <span className={cn("text-[11.5px] font-bold uppercase tracking-[0.07em]", accent === "actual" ? "text-actual" : "text-client")}>{label}</span>
+            <span className={cn("text-[11.5px] font-bold uppercase tracking-[0.07em]", accent === "actual" ? "text-actual" : "text-client", removed && "line-through opacity-60")}>{label}</span>
             <span className="rounded-full bg-black/[0.06] px-1.5 text-[10.5px] font-semibold text-ink-2">{count}</span>
           </button>
           {note && <span className="text-[11px] text-ink-3">{note}</span>}
+          {removed && onRestore && (
+            <button onClick={onRestore} className="flex items-center gap-1 rounded border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink-2 hover:bg-white">
+              <RotateCw size={11} /> Restore header
+            </button>
+          )}
+          {!removed && onRemove && (
+            <Tip content="Remove this header and all its rows from this costing (restorable)">
+              <button onClick={onRemove} aria-label={`Remove header ${label}`} className="rounded p-1 text-ink-3 opacity-60 hover:bg-bad-soft hover:text-bad hover:opacity-100 focus:opacity-100">
+                <Trash2 size={12} />
+              </button>
+            </Tip>
+          )}
         </div>
       </td>
       {cells.map((c, k) => (
@@ -157,7 +171,7 @@ function newLine(sectionKey: string, sectionLabel: string, item: string, calc: C
 
 /* ───────────── ACTUAL ───────────── */
 
-export function ActualTable({ doc, result, edit, issues, uoms, readOnly, showRemoved }: BaseProps & { doc: ActualCosting; result: ActualResult; edit: Edit<ActualCosting> }) {
+export function ActualTable({ doc, result, edit, issues, uoms, readOnly, showRemoved, structure }: BaseProps & { doc: ActualCosting; result: ActualResult; edit: Edit<ActualCosting> }) {
   const { collapsed, toggle } = useCollapsed();
   const by = getUserName();
   const setF = (id: string, f: LineField, v: number | string | null) => edit((d) => setLineField(d, id, f, v, { by }));
@@ -195,8 +209,8 @@ export function ActualTable({ doc, result, edit, issues, uoms, readOnly, showRem
               {(["orderPcs", "dispatchPcs"] as const).map((k) => (
                 <tr key={k} className="border-t border-line">
                   <td className="px-1.5 py-1 font-medium">{k === "orderPcs" ? "ORDER PCS" : "DISPATCH PCS"}</td>
-                  <td><NumberCell value={a[k].qty} onCommit={(v) => setPcs(k, "qty", v)} disabled={readOnly} ariaLabel={`${k} qty`} /></td>
-                  <td><NumberCell value={a[k].rate} onCommit={(v) => setPcs(k, "rate", v)} disabled={readOnly} ariaLabel={`${k} rate`} /></td>
+                  <td><NumberCell value={a[k].qty} onCommit={(v) => setPcs(k, "qty", v)} disabled={readOnly || structure} ariaLabel={`${k} qty`} /></td>
+                  <td><NumberCell value={a[k].rate} onCommit={(v) => setPcs(k, "rate", v)} disabled={readOnly || structure} ariaLabel={`${k} rate`} /></td>
                   <td className="num px-1.5 text-right font-medium">{money(k === "orderPcs" ? result.orderSale : result.dispatchSale)}</td>
                 </tr>
               ))}
@@ -209,7 +223,7 @@ export function ActualTable({ doc, result, edit, issues, uoms, readOnly, showRem
             <div className="w-28">
               <NumberCell
                 value={a.consumption.value}
-                disabled={readOnly}
+                disabled={readOnly || structure}
                 ariaLabel="Consumption"
                 suffix="m"
                 onCommit={(v) =>
@@ -280,15 +294,17 @@ export function ActualTable({ doc, result, edit, issues, uoms, readOnly, showRem
         </thead>
         <tbody>
           {sections.map((s) => {
+            const removedSec = isSectionRemoved(doc, s.key);
+            if (removedSec && !showRemoved) return null;
             const lines = doc.lines.filter((l) => l.sectionKey === s.key && (showRemoved || !l.removed));
             const total = result.sections.find((x) => x.key === s.key)?.total ?? 0;
-            const isCollapsed = collapsed[s.key];
+            const isCollapsed = collapsed[s.key] || removedSec;
             return (
               <React.Fragment key={s.key}>
-                <SectionHeader label={s.label} count={lines.filter((l) => !l.removed).length} collapsed={!!isCollapsed} onToggle={() => toggle(s.key)} accent="actual" span={3} trail={1} note={s.key === "FABRIC_ORDER" ? "Total fabric cost" : s.key === "TRIMS" ? "Total trims cost" : "Subtotal"} cells={[<span key="t" className="font-semibold text-ink">{money(total)}</span>]} />
+                <SectionHeader label={s.label} count={lines.filter((l) => !l.removed).length} collapsed={!!isCollapsed} onToggle={() => toggle(s.key)} accent="actual" span={3} trail={1} note={s.key === "FABRIC_ORDER" ? "Total fabric cost" : s.key === "TRIMS" ? "Total trims cost" : "Subtotal"} cells={[<span key="t" className="font-semibold text-ink">{removedSec ? "—" : money(total)}</span>]} removed={removedSec} onRemove={readOnly ? undefined : () => edit((d) => removeSection(d, s.key))} onRestore={() => edit((d) => restoreSection(d, s.key))} />
                 {!isCollapsed &&
                   lines.map((l) => (
-                    <ActualRow key={l.id} line={l} total={result.lineTotals[l.id] ?? 0} setF={setF} revert={revert} edit={edit} issues={lineIssues(issues, l.id)} readOnly={readOnly} />
+                    <ActualRow key={l.id} line={l} total={result.lineTotals[l.id] ?? 0} setF={setF} revert={revert} edit={edit} issues={lineIssues(issues, l.id)} readOnly={readOnly} structure={structure} />
                   ))}
                 {!isCollapsed && !readOnly && s.key !== "LD_CHARGES" && (
                   <AddComponent colSpan={5} onAdd={(name) => edit((d) => addLine(d, newLine(s.key, s.label, name)))} />
@@ -310,11 +326,13 @@ export function ActualTable({ doc, result, edit, issues, uoms, readOnly, showRem
           />
 
           {/* REJECT */}
-          <SectionHeader label="REJECT" count={doc.lines.filter((l) => l.sectionKey === "REJECT" && !l.removed).length} collapsed={!!collapsed.REJECT} onToggle={() => toggle("REJECT")} accent="actual" span={3} trail={1} note="Total Value Loss" cells={[<span key="t" className="font-semibold text-ink">{money(result.totalValueLoss)}</span>]} />
-          {!collapsed.REJECT &&
+          {(!isSectionRemoved(doc, "REJECT") || showRemoved) && (
+            <SectionHeader label="REJECT" count={doc.lines.filter((l) => l.sectionKey === "REJECT" && !l.removed).length} collapsed={!!collapsed.REJECT || isSectionRemoved(doc, "REJECT")} onToggle={() => toggle("REJECT")} accent="actual" span={3} trail={1} note="Total Value Loss" cells={[<span key="t" className="font-semibold text-ink">{isSectionRemoved(doc, "REJECT") ? "—" : money(result.totalValueLoss)}</span>]} removed={isSectionRemoved(doc, "REJECT")} onRemove={readOnly ? undefined : () => edit((d) => removeSection(d, "REJECT"))} onRestore={() => edit((d) => restoreSection(d, "REJECT"))} />
+          )}
+          {!collapsed.REJECT && !isSectionRemoved(doc, "REJECT") &&
             doc.lines
               .filter((l) => l.sectionKey === "REJECT" && (showRemoved || !l.removed))
-              .map((l) => <ActualRow key={l.id} line={l} total={result.lineTotals[l.id] ?? 0} setF={setF} revert={revert} edit={edit} issues={lineIssues(issues, l.id)} readOnly={readOnly} />)}
+              .map((l) => <ActualRow key={l.id} line={l} total={result.lineTotals[l.id] ?? 0} setF={setF} revert={revert} edit={edit} issues={lineIssues(issues, l.id)} readOnly={readOnly} structure={structure} />)}
           <SummaryRow label="% value loss" hint="Total Value Loss ÷ Total Cost × 100" value={pct(result.valueLossPct)} />
         </tbody>
       </table>
@@ -342,7 +360,7 @@ function SummaryRow({ label, hint, value, strong, tone, extra }: { label: string
   );
 }
 
-function ActualRow({ line: l, total, setF, revert, edit, issues, readOnly }: { line: CostLine; total: number; setF: (id: string, f: LineField, v: number | string | null) => void; revert: (id: string, f: LineField) => void; edit: Edit<ActualCosting>; issues: ValidationIssue[]; readOnly?: boolean }) {
+function ActualRow({ line: l, total, setF, revert, edit, issues, readOnly, structure }: { line: CostLine; total: number; setF: (id: string, f: LineField, v: number | string | null) => void; revert: (id: string, f: LineField) => void; edit: Edit<ActualCosting>; issues: ValidationIssue[]; readOnly?: boolean; structure?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const removed = !!l.removed;
   const isAmount = l.calc === "ENTERED_AMOUNT";
@@ -370,16 +388,16 @@ function ActualRow({ line: l, total, setF, revert, edit, issues, readOnly }: { l
             <span className="block px-1.5 text-right text-[11px] text-ink-3">amount</span>
           ) : (
             <div className="flex items-center gap-0.5">
-              <NumberCell value={l.quantity} onCommit={(v) => setF(l.id, "quantity", v)} disabled={readOnly || removed} ariaLabel={`${l.item} quantity`} />
+              <NumberCell value={l.quantity} onCommit={(v) => setF(l.id, "quantity", v)} disabled={readOnly || removed || structure} ariaLabel={`${l.item} quantity`} />
             </div>
           )}
         </td>
         <td className="px-1">
-          {isAmount ? null : <NumberCell value={l.rate} onCommit={(v) => setF(l.id, "rate", v)} disabled={readOnly || removed} ariaLabel={`${l.item} rate`} />}
+          {isAmount ? null : <NumberCell value={l.rate} onCommit={(v) => setF(l.id, "rate", v)} disabled={readOnly || removed || structure} ariaLabel={`${l.item} rate`} />}
         </td>
         <td className="px-1">
           {isAmount ? (
-            <NumberCell value={l.amount ?? null} onCommit={(v) => setF(l.id, "amount", v)} disabled={readOnly || removed} ariaLabel={`${l.item} amount`} />
+            <NumberCell value={l.amount ?? null} onCommit={(v) => setF(l.id, "amount", v)} disabled={readOnly || removed || structure} ariaLabel={`${l.item} amount`} />
           ) : (
             <div className="num px-1.5 text-right font-medium">{removed ? "—" : money(total)}</div>
           )}
@@ -445,27 +463,28 @@ const ATTRS: Array<{ key: string; label: string; wide?: boolean }> = [
   { key: "action", label: "Action" },
 ];
 
-export function ClientTable({ doc, result, edit, issues, uoms, readOnly, showRemoved }: BaseProps & { doc: ClientCosting; result: ClientResult; edit: Edit<ClientCosting> }) {
+export function ClientTable({ doc, result, edit, issues, uoms, readOnly, showRemoved, structure }: BaseProps & { doc: ClientCosting; result: ClientResult; edit: Edit<ClientCosting> }) {
   const { collapsed, toggle } = useCollapsed();
   const by = getUserName();
   const setF = (id: string, f: LineField, v: number | string | null) => edit((d) => setLineField(d, id, f, v, { by }));
   const revert = (id: string, f: LineField) => edit((d) => revertOverride(d, id, f));
   const setAttr = (id: string, key: string, v: string) => edit((d) => ({ ...d, lines: d.lines.map((l) => (l.id === id ? { ...l, attributes: { ...l.attributes, [key]: v === "" ? null : v } } : l)) }));
 
-  const allSections = [...doc.client.sections];
-  for (const l of doc.lines) if (!allSections.find((s) => s.key === l.sectionKey)) allSections.push({ key: l.sectionKey, label: l.sectionLabel, phase: "MAIN" });
+  const allSections = doc.client.sections.filter((s) => showRemoved || !s.removed);
+  for (const l of doc.lines) if (!doc.client.sections.find((s) => s.key === l.sectionKey) && !allSections.find((s) => s.key === l.sectionKey)) allSections.push({ key: l.sectionKey, label: l.sectionLabel, phase: "MAIN" });
   const main = allSections.filter((s) => s.phase === "MAIN");
   const post = allSections.filter((s) => s.phase === "POST_TOTAL");
 
   const renderSection = (s: (typeof allSections)[number]) => {
     const lines = doc.lines.filter((l) => l.sectionKey === s.key && (showRemoved || !l.removed));
     const t = result.sections.find((x) => x.key === s.key);
-    const isCollapsed = collapsed[s.key];
+    const removedSec = !!(s as { removed?: boolean }).removed;
+    const isCollapsed = collapsed[s.key] || removedSec;
     const live = lines.filter((l) => !l.removed).length;
     return (
       <React.Fragment key={s.key}>
-        <SectionHeader label={s.label} count={live} collapsed={!!isCollapsed} onToggle={() => toggle(s.key)} accent="client" span={6} trail={2} cells={[<span key="b" className="font-semibold text-ink">{money(t?.total ?? 0)}</span>, <span key="g" className="text-ink-2">{money(t?.gst ?? 0)}</span>, <span key="w" className="text-ink-2">{money(t?.withGst ?? 0)}</span>]} />
-        {!isCollapsed && lines.map((l) => <ClientRow key={l.id} line={l} res={result.lineResults[l.id]} setF={setF} revert={revert} setAttr={setAttr} edit={edit} issues={lineIssues(issues, l.id)} readOnly={readOnly} />)}
+        <SectionHeader label={s.label} count={live} collapsed={!!isCollapsed} onToggle={() => toggle(s.key)} accent="client" span={6} trail={2} cells={removedSec ? ["—", "—", "—"] : [<span key="b" className="font-semibold text-ink">{money(t?.total ?? 0)}</span>, <span key="g" className="text-ink-2">{money(t?.gst ?? 0)}</span>, <span key="w" className="text-ink-2">{money(t?.withGst ?? 0)}</span>]} removed={removedSec} onRemove={readOnly ? undefined : () => edit((d) => removeSection(d, s.key))} onRestore={() => edit((d) => restoreSection(d, s.key))} />
+        {!isCollapsed && lines.map((l) => <ClientRow key={l.id} line={l} res={result.lineResults[l.id]} setF={setF} revert={revert} setAttr={setAttr} edit={edit} issues={lineIssues(issues, l.id)} readOnly={readOnly} structure={structure} />)}
         {!isCollapsed && !readOnly && <AddComponent colSpan={11} onAdd={(name) => edit((d) => addLine(d, newLine(s.key, s.label, name, "QTY_X_RATE", d.currency)))} />}
       </React.Fragment>
     );
@@ -520,7 +539,33 @@ export function ClientTable({ doc, result, edit, issues, uoms, readOnly, showRem
           <TotalRow label="Total Cost" hint="Total + Testing + Garment Rejection + Overhead+Margin" r={result.totalCost} strong />
         </tbody>
       </table>
+      {!readOnly && <AddHeader onAdd={(label) => edit((d) => addClientSection(d, label))} />}
       <PriceChain doc={doc} result={result} edit={edit} readOnly={readOnly} />
+    </div>
+  );
+}
+
+function AddHeader({ onAdd }: { onAdd: (label: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const submit = () => {
+    if (name.trim()) onAdd(name.trim());
+    setName("");
+    setOpen(false);
+  };
+  return (
+    <div className="border-t border-line px-4 py-2">
+      {open ? (
+        <div className="flex items-center gap-2">
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") setOpen(false); }} placeholder="New header (Cost Item category)" className="h-7 w-72 rounded border border-accent bg-white px-2 text-[12.5px] outline-none ring-2 ring-accent/15" />
+          <Button size="sm" variant="primary" onClick={submit}>Add header</Button>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+        </div>
+      ) : (
+        <button onClick={() => setOpen(true)} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium text-ink-3 hover:bg-black/5 hover:text-accent">
+          <Plus size={13} /> Add header
+        </button>
+      )}
     </div>
   );
 }
@@ -583,7 +628,7 @@ function PriceChain({ doc, result, edit, readOnly }: { doc: ClientCosting; resul
   );
 }
 
-function ClientRow({ line: l, res, setF, revert, setAttr, edit, issues, readOnly }: { line: CostLine; res?: { base: number; gst: number; withGst: number }; setF: (id: string, f: LineField, v: number | string | null) => void; revert: (id: string, f: LineField) => void; setAttr: (id: string, k: string, v: string) => void; edit: Edit<ClientCosting>; issues: ValidationIssue[]; readOnly?: boolean }) {
+function ClientRow({ line: l, res, setF, revert, setAttr, edit, issues, readOnly, structure }: { line: CostLine; res?: { base: number; gst: number; withGst: number }; setF: (id: string, f: LineField, v: number | string | null) => void; revert: (id: string, f: LineField) => void; setAttr: (id: string, k: string, v: string) => void; edit: Edit<ClientCosting>; issues: ValidationIssue[]; readOnly?: boolean; structure?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const removed = !!l.removed;
   const isPct = l.calc === "PERCENT_OF_SUBTOTAL";
@@ -616,15 +661,15 @@ function ClientRow({ line: l, res, setF, revert, setAttr, edit, issues, readOnly
           {isPct ? (
             <Tip content="Quantity is not used: this line is a % of Total (source formula L = Total × price)."><span className="block px-1.5 text-right text-ink-3">—</span></Tip>
           ) : (
-            <NumberCell value={l.quantity} onCommit={(v) => setF(l.id, "quantity", v)} disabled={dis} ariaLabel={`${name} quantity`} />
+            <NumberCell value={l.quantity} onCommit={(v) => setF(l.id, "quantity", v)} disabled={dis || structure} ariaLabel={`${name} quantity`} />
           )}
         </td>
         <td className="px-1">{isPct ? null : <TextCell value={l.uom} list="uom-list" onCommit={(v) => setF(l.id, "uom", v === "" ? null : v)} disabled={dis} placeholder="—" ariaLabel={`${name} UOM`} />}</td>
         <td className="px-1">
           {isPct ? (
-            <NumberCell value={l.rate} scale={100} suffix="%" onCommit={(v) => setF(l.id, "rate", v)} disabled={dis} ariaLabel={`${name} percent of Total`} />
+            <NumberCell value={l.rate} scale={100} suffix="%" onCommit={(v) => setF(l.id, "rate", v)} disabled={dis || structure} ariaLabel={`${name} percent of Total`} />
           ) : (
-            <NumberCell value={l.rate} onCommit={(v) => setF(l.id, "rate", v)} disabled={dis} ariaLabel={`${name} price without GST`} />
+            <NumberCell value={l.rate} onCommit={(v) => setF(l.id, "rate", v)} disabled={dis || structure} ariaLabel={`${name} price without GST`} />
           )}
         </td>
         <td className="px-1">

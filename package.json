@@ -13,8 +13,8 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx scripts/seed.ts",
-    "import": "tsx scripts/import.ts",
-    "setup:local": "prisma db push && tsx scripts/seed.ts"
+    "setup:local": "prisma db push && tsx scripts/seed.ts",
+    "template": "tsx scripts/rebuild-template.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

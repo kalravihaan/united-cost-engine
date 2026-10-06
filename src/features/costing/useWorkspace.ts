@@ -2,18 +2,12 @@
 import * as React from "react";
 import type { ActualCosting, ActualResult, CadData, ClientCosting, ClientResult, CostingDoc, CostingResult, ValidationIssue } from "@/types/costing";
 import type { RuleSet } from "@/types/rules";
-import { applyCadToCosting, calculateActualCost, calculateClientCost, compareCostings, setLineField, type ComparisonResult } from "@/lib/calculations";
+import { applyCadToCosting, calculateActualCost, calculateClientCost, compareCostings, createFromTemplate, setLineField, type ComparisonResult } from "@/lib/calculations";
 import { validateCosting } from "@/lib/validation/validate";
 import { api, type VersionPayload, type Workspace } from "./api";
 import { getUserName } from "./user";
 
 export type CostingType = "ACTUAL" | "CLIENT";
-
-export interface Pairing {
-  type: CostingType;
-  label: string;
-  doc: CostingDoc;
-}
 
 export interface CategoryOption {
   id: string;
@@ -37,11 +31,12 @@ export function useWorkspace() {
   const [dirty, setDirty] = React.useState<Record<CostingType, number>>({ ACTUAL: 0, CLIENT: 0 });
   const [loadedVersion, setLoadedVersion] = React.useState<Record<CostingType, { id: string; versionNo: number; historic: boolean } | null>>({ ACTUAL: null, CLIENT: null });
   const [rules, setRules] = React.useState<RuleSet | null>(null);
-  const [pairing, setPairing] = React.useState<Pairing | null>(null);
+  const [templates, setTemplates] = React.useState<{ ACTUAL: CostingDoc | null; CLIENT: CostingDoc | null } | null>(null);
   const requestId = React.useRef(0);
 
   React.useEffect(() => {
     api.rules().then(setRules).catch(() => setRules(null));
+    Promise.all([api.template("ACTUAL").catch(() => null), api.template("CLIENT").catch(() => null)]).then(([a, c]) => setTemplates({ ACTUAL: a?.doc ?? null, CLIENT: c?.doc ?? null }));
   }, []);
 
   const hydrate = React.useCallback((w: Workspace, keepDrafts = false) => {
@@ -64,7 +59,6 @@ export function useWorkspace() {
       try {
         const w = await api.workspace(styleId);
         if (my !== requestId.current) return null;
-        setPairing(null);
         hydrate(w);
         return w;
       } catch (e) {
@@ -93,7 +87,6 @@ export function useWorkspace() {
     setDrafts(empty);
     setDirty({ ACTUAL: 0, CLIENT: 0 });
     setLoadedVersion({ ACTUAL: null, CLIENT: null });
-    setPairing(null);
   }, []);
 
   /** Apply a pure document transformation to the working copy of one costing type. */
@@ -117,7 +110,8 @@ export function useWorkspace() {
   const discard = React.useCallback(
     (type: CostingType) => {
       const v = type === "ACTUAL" ? ws?.actual : ws?.client;
-      setDraft(type, v?.doc ?? null, v ? { id: v.id, versionNo: v.versionNo, historic: false } : null, 0);
+      if (v) setDraft(type, v.doc, { id: v.id, versionNo: v.versionNo, historic: false }, 0);
+      else setDraft(type, null, null, 0); // new costing: the effect rebuilds it from the default template
     },
     [ws, setDraft],
   );
@@ -147,6 +141,33 @@ export function useWorkspace() {
     [setDraft],
   );
 
+  /**
+   * A style without a costing in a mode starts from that mode's default template: ALL its headers and rows,
+   * no values. It is an unsaved draft until the user saves it as version 1.
+   */
+  const freshDraft = React.useCallback(
+    (type: CostingType): CostingDoc | null => {
+      const tpl = templates?.[type];
+      if (!tpl || !ws) return null;
+      return createFromTemplate(tpl, { number: ws.style.number, label: ws.style.number, color: ws.style.color ?? undefined }, "STRUCTURE");
+    },
+    [templates, ws],
+  );
+
+  React.useEffect(() => {
+    if (!ws || !templates) return;
+    for (const type of ["ACTUAL", "CLIENT"] as const) {
+      const stored = type === "ACTUAL" ? ws.actual : ws.client;
+      if (!stored && !drafts[type]) {
+        const d = freshDraft(type);
+        if (d) {
+          setDrafts((x) => ({ ...x, [type]: d }) as Drafts);
+          setDirty((x) => ({ ...x, [type]: 1 }));
+        }
+      }
+    }
+  }, [ws, templates, drafts, freshDraft]);
+
   /* ───────── derived ───────── */
   const results = React.useMemo(() => {
     const out: { ACTUAL: ActualResult | null; CLIENT: ClientResult | null } = { ACTUAL: null, CLIENT: null };
@@ -157,13 +178,13 @@ export function useWorkspace() {
 
   const cad: CadData | null = ws?.cad?.data ?? null;
 
-  const comparison: { cmp: ComparisonResult; paired: boolean; label: string | null } | null = React.useMemo(() => {
-    if (!rules) return null;
-    const a = drafts.ACTUAL ?? (pairing?.type === "ACTUAL" ? (pairing.doc as ActualCosting) : null);
-    const c = drafts.CLIENT ?? (pairing?.type === "CLIENT" ? (pairing.doc as ClientCosting) : null);
-    if (!a || !c) return null;
-    return { cmp: compareCostings(a, calculateActualCost(a), c, calculateClientCost(c), rules), paired: !(drafts.ACTUAL && drafts.CLIENT), label: pairing?.label ?? null };
-  }, [drafts, pairing, rules]);
+  /** Actual vs Client of the SAME style, from the working copies (so it updates as values are entered). */
+  const comparison: ComparisonResult | null = React.useMemo(() => {
+    const a = drafts.ACTUAL;
+    const c = drafts.CLIENT;
+    if (!rules || !a || !c) return null;
+    return compareCostings(a, calculateActualCost(a), c, calculateClientCost(c), rules);
+  }, [drafts, rules]);
 
   const validate = React.useCallback(
     (type: CostingType): ValidationIssue[] =>
@@ -204,7 +225,7 @@ export function useWorkspace() {
     [],
   );
 
-  return { ws, loading, error, drafts, dirty, loadedVersion, rules, results, cad, comparison, pairing, setPairing, loadStyle, refresh, clear, edit, discard, save, loadHistoric, validate, applyCad, applyCategory, setDraft, hydrate };
+  return { ws, loading, error, drafts, dirty, loadedVersion, rules, templates, results, cad, comparison, loadStyle, refresh, clear, edit, discard, save, loadHistoric, validate, applyCad, applyCategory, setDraft, hydrate };
 }
 
 export type Workbench = ReturnType<typeof useWorkspace>;

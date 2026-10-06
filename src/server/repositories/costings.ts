@@ -16,7 +16,6 @@ export interface SaveVersionInput {
   sourceKind: "IMPORT" | "TEMPLATE" | "MANUAL";
   sourceFile?: string | null;
   sourceSheet?: string | null;
-  importBatchId?: string | null;
   note?: string | null;
   createdBy: string;
 }
@@ -33,7 +32,6 @@ export const costingRepository = {
         sourceKind: i.sourceKind,
         sourceFile: i.sourceFile ?? null,
         sourceSheet: i.sourceSheet ?? null,
-        importBatchId: i.importBatchId ?? null,
         doc: i.doc as unknown as Prisma.InputJsonValue,
         result: i.result as unknown as Prisma.InputJsonValue,
         engineVersion: i.engineVersion,

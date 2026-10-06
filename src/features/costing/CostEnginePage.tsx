@@ -1,17 +1,18 @@
 "use client";
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { api } from "./api";
 import { Download, FileSpreadsheet, FileText, Save, Undo2, History as HistoryIcon, Eye, EyeOff, Layers } from "lucide-react";
 import type { ActualCosting, ClientCosting, CostingDoc } from "@/types/costing";
 import { applyCadToCosting, diffCostings } from "@/lib/calculations";
 import { cn, dateTime, rupee } from "@/lib/format";
 import { Badge, Button, Card, EmptyState, Skeleton } from "@/components/ui/primitives";
-import { Combobox, Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlay";
+import { Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
 import { StylePanel } from "@/features/styles/StylePanel";
 import { CadPanel } from "@/features/cad/CadPanel";
 import { ComparisonPanel } from "@/features/comparison/ComparisonPanel";
-import { api } from "./api";
 import { ActualTable, ClientTable } from "./CostingTable";
 import { AuditPanel, ChainPanel, ChecksPanel, VersionsPanel } from "./panels";
 import { WorkflowBar } from "./WorkflowBar";
@@ -111,7 +112,7 @@ export function CostEnginePage() {
       const res = await fetch("/api/export", {
         method: "POST",
         headers: { "content-type": "application/json", "x-user": getUserName() },
-        body: JSON.stringify({ styleId: wb.ws.style.id, doc, format, versionNo: version?.versionNo ?? null, unsaved: isDirty, pairedDoc: wb.pairing?.doc ?? null }),
+        body: JSON.stringify({ styleId: wb.ws.style.id, doc, format, versionNo: version?.versionNo ?? null, unsaved: isDirty, otherDoc: wb.drafts[mode === "ACTUAL" ? "CLIENT" : "ACTUAL"] }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? res.statusText);
       const blob = await res.blob();
@@ -152,28 +153,38 @@ export function CostEnginePage() {
 
               <TabsContent value="costing" className="outline-none">
                 {!wb.ws ? (
-                  <div className="p-4">{wb.loading ? <TableSkeleton /> : <EmptyState title="Enter a style number to begin" icon={<Layers size={24} />}>Existing styles open with their saved Actual and Client costings. A new style number starts a new costing from a template; CAD consumption then feeds the fabric lines.</EmptyState>}</div>
+                  <div className="p-4">{wb.loading ? <TableSkeleton /> : <EmptyState title="Enter a style number to begin" icon={<Layers size={24} />}>Create the style, add its image, upload the CAD, then enter the costing. Each mode opens with all of its standard headers and rows; remove the ones this style does not need. CAD consumption feeds the fabric lines.</EmptyState>}</div>
                 ) : !doc ? (
-                  <StartCosting wb={wb} type={mode} onStarted={() => setVersionKey((k) => k + 1)} />
+                  <div className="p-4">
+                    {wb.templates === null ? (
+                      <TableSkeleton />
+                    ) : (
+                      <EmptyState title={`No default ${mode === "ACTUAL" ? "Actual" : "Client"} template yet`} icon={<Layers size={24} />}>
+                        Each costing mode starts with all of its headers and rows. <Link href="/templates" className="font-medium text-accent hover:underline">Set up the default templates</Link> and this costing will open ready for entry.
+                      </EmptyState>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-2/60 px-4 py-2">
                       <div className="flex items-center gap-2 text-[12px] text-ink-2">
                         <Badge tone={mode === "ACTUAL" ? "actual" : "client"}>{mode === "ACTUAL" ? "ACTUAL COSTING" : "CLIENT COSTING"}</Badge>
                         <span className="font-semibold text-ink">{doc.style.label || doc.style.number}</span>
-                        {version && (
+                        {version ? (
                           <span>
                             {version.historic ? <Badge tone="warn">Viewing v{version.versionNo} (historic)</Badge> : <>v{version.versionNo}</>}
                             {stored && !version.historic && <span className="text-ink-3"> · {dateTime(stored.createdAt)} · {stored.createdBy}</span>}
                           </span>
+                        ) : (
+                          <Badge tone="warn">New costing · not saved yet</Badge>
                         )}
-                        {isDirty && <Badge tone="warn">{changes.length || wb.dirty[mode]} unsaved change{(changes.length || wb.dirty[mode]) === 1 ? "" : "s"}</Badge>}
+                        {isDirty && version && <Badge tone="warn">{changes.length || wb.dirty[mode]} unsaved change{(changes.length || wb.dirty[mode]) === 1 ? "" : "s"}</Badge>}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Button size="sm" variant="ghost" onClick={() => setShowRemoved((s) => !s)}>{showRemoved ? <EyeOff size={13} /> : <Eye size={13} />} {showRemoved ? "Hide" : "Show"} removed</Button>
-                        <Button size="sm" variant="outline" disabled={!isDirty && !version?.historic} onClick={() => wb.discard(mode)}><Undo2 size={13} /> {version?.historic ? "Back to latest" : "Discard"}</Button>
+                        <Button size="sm" variant="outline" disabled={!isDirty && !version?.historic} onClick={() => wb.discard(mode)}><Undo2 size={13} /> {version?.historic ? "Back to latest" : version ? "Discard" : "Start over"}</Button>
                         <ExportMenu onExport={exportDoc} />
-                        <Button size="sm" variant="primary" disabled={!isDirty && !version?.historic} onClick={() => setSaveOpen(true)}><Save size={13} /> Save version</Button>
+                        <Button size="sm" variant="primary" disabled={!isDirty && !version?.historic} onClick={() => setSaveOpen(true)}><Save size={13} /> {version ? "Save version" : "Save as v1"}</Button>
                       </div>
                     </div>
                     {doc.type === "ACTUAL" && result?.type === "ACTUAL" ? (
@@ -187,7 +198,7 @@ export function CostEnginePage() {
 
               <TabsContent value="comparison" className="outline-none">
                 {wb.ws ? (
-                  <ComparisonPanel comparison={wb.comparison} hasActual={!!wb.drafts.ACTUAL} hasClient={!!wb.drafts.CLIENT} styleNumber={wb.ws.style.number} onPair={wb.setPairing} onClearPair={() => wb.setPairing(null)} pairing={wb.pairing} docs={wb.drafts} />
+                  <ComparisonPanel cmp={wb.comparison} styleNumber={wb.ws.style.number} actualEmpty={(wb.results.ACTUAL?.totalCost ?? 0) === 0} clientEmpty={(wb.results.CLIENT?.totalCost.base ?? 0) === 0} />
                 ) : (
                   <EmptyState title="Select a style" />
                 )}
@@ -224,23 +235,20 @@ export function CostEnginePage() {
 function SummaryStrip({ wb, mode }: { wb: Workbench; mode: CostingType }) {
   const a = wb.results.ACTUAL;
   const c = wb.results.CLIENT;
-  const cmp = wb.comparison?.cmp ?? null;
-  const actualPc = a?.costPerPc ?? cmp?.totals.actualPerPc ?? null;
-  const clientPc = c?.totalCost.base ?? cmp?.totals.clientPerPc ?? null;
+  const touched = (t: CostingType) => wb.drafts[t]?.lines.some((l) => (l.quantity ?? 0) !== 0 || (l.rate ?? 0) !== 0 || (l.amount ?? 0) !== 0);
+  const actualPc = a && touched("ACTUAL") ? a.costPerPc : null;
+  const clientPc = c && touched("CLIENT") ? c.totalCost.base : null;
   const diff = actualPc !== null && clientPc !== null ? clientPc - actualPc : null;
   const premium = diff !== null && actualPc ? (diff * 100) / actualPc : null;
-  const paired = !!wb.comparison?.paired;
   return (
     <div className="sticky top-[60px] z-20">
       <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 rounded-lg border border-line bg-surface/95 p-3 shadow-[0_4px_16px_-8px_rgba(16,24,40,0.18)] backdrop-blur">
-        <Stat label="Actual cost / pc" value={rupee(actualPc)} tone="actual" active={mode === "ACTUAL"} sub={a ? `Total cost ${rupee(a.totalCost)} · profit ${rupee(a.perPcProfit)} / pc` : wb.ws ? "No Actual costing for this style" : "—"} />
-        <Stat label="Client cost / pc" value={rupee(clientPc)} tone="client" active={mode === "CLIENT"} sub={c ? `Final PO incl. transport ${rupee(c.finalPoPriceInclTransport)}` : wb.ws ? "No Client costing for this style" : "—"} />
-        <Stat label="Difference / pc" value={diff === null ? "—" : rupee(diff, { sign: true })} sub={diff === null ? (wb.ws ? "Needs both costings" : "—") : `Client premium ${premium === null ? "—" : premium.toFixed(2) + "%"}${paired ? " · manual pairing" : ""}`} />
+        <Stat label="Actual cost / pc" value={rupee(actualPc)} tone="actual" active={mode === "ACTUAL"} sub={!wb.ws ? "—" : a && touched("ACTUAL") ? `Total cost ${rupee(a.totalCost)} · profit ${rupee(a.perPcProfit)} / pc` : "Enter quantities and rates"} />
+        <Stat label="Client cost / pc" value={rupee(clientPc)} tone="client" active={mode === "CLIENT"} sub={!wb.ws ? "—" : c && touched("CLIENT") ? `Final PO incl. transport ${rupee(c.finalPoPriceInclTransport)}` : "Enter quantities and rates"} />
+        <Stat label="Difference / pc" value={diff === null ? "—" : rupee(diff, { sign: true })} sub={diff === null ? (wb.ws ? "Appears once both costings have values" : "—") : `Client premium ${premium === null ? "—" : premium.toFixed(2) + "%"}`} />
         <div className="flex min-w-[120px] flex-col items-end justify-center text-right">
           <div className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3">Checks</div>
-          <div className="mt-0.5 flex items-center gap-1">
-            {wb.ws ? <ChecksBadge issues={wb.validate(mode)} /> : <span className="text-ink-3">—</span>}
-          </div>
+          <div className="mt-0.5 flex items-center gap-1">{wb.ws ? <ChecksBadge issues={wb.validate(mode)} /> : <span className="text-ink-3">—</span>}</div>
         </div>
       </div>
     </div>
@@ -325,56 +333,5 @@ function SaveDialog({ open, onOpenChange, changes, historic, versionNo, onSave, 
         </div>
       </div>
     </Dialog>
-  );
-}
-
-function StartCosting({ wb, type, onStarted }: { wb: Workbench; type: CostingType; onStarted: () => void }) {
-  const [templates, setTemplates] = React.useState<Array<{ styleId: string; styleNumber: string; color: string | null; versionNo: number; costPerPc: number | null }>>([]);
-  const [tpl, setTpl] = React.useState<string | null>(null);
-  const [mode, setMode] = React.useState<"STRUCTURE" | "VALUES">("STRUCTURE");
-  const [busy, setBusy] = React.useState(false);
-  const toast = useToast();
-  React.useEffect(() => {
-    api.templates(type).then((t) => setTemplates(t.filter((x) => x.styleId !== wb.ws?.style.id))).catch(() => setTemplates([]));
-  }, [type, wb.ws?.style.id]);
-  const label = type === "ACTUAL" ? "Actual" : "Client";
-  const go = async () => {
-    if (!wb.ws || !tpl) return;
-    setBusy(true);
-    try {
-      await api.start({ styleId: wb.ws.style.id, type, templateStyleId: tpl, mode });
-      await wb.loadStyle(wb.ws.style.id);
-      onStarted();
-      toast.push({ kind: "ok", title: `${label} costing started`, body: mode === "STRUCTURE" ? "Structure only – enter quantities and rates, or apply CAD consumption." : "Values were copied from the template and are marked TPL – verify each one." });
-    } catch (e) {
-      toast.push({ kind: "error", title: "Could not start costing", body: (e as Error).message });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="mx-auto max-w-xl px-4 py-10">
-      <div className="text-center">
-        <div className="text-[14px] font-semibold">No {label} costing for style {wb.ws?.style.number} yet</div>
-        <p className="mx-auto mt-1 max-w-md text-[12.5px] text-ink-2">
-          The two costing datasets are independent, so one is never derived from the other. Start a {label} costing from the structure of an existing one; nothing is copied unless you choose to.
-        </p>
-      </div>
-      <div className="mt-5 space-y-3 rounded-lg border border-line bg-surface-2 p-4">
-        <div>
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">Template</div>
-          <Combobox value={tpl} onChange={setTpl} options={templates.map((t) => ({ value: t.styleId, label: `${t.styleNumber}${t.color ? ` · ${t.color}` : ""}`, hint: t.costPerPc !== null ? `${rupee(t.costPerPc)} / pc` : `v${t.versionNo}` }))} placeholder={templates.length ? "Choose a style to copy the structure from…" : `No ${label} costing exists to use as a template`} searchPlaceholder="Search style…" />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {(["STRUCTURE", "VALUES"] as const).map((m) => (
-            <button key={m} onClick={() => setMode(m)} className={cn("rounded-md border p-2.5 text-left", mode === m ? "border-accent bg-white ring-2 ring-accent/15" : "border-line hover:bg-white")}>
-              <div className="text-[12.5px] font-semibold">{m === "STRUCTURE" ? "Structure only" : "Copy values too"}</div>
-              <div className="mt-0.5 text-[11.5px] text-ink-3">{m === "STRUCTURE" ? "Same components, empty quantities & rates (recommended)." : "Quantities and rates copied, flagged TPL for verification."}</div>
-            </button>
-          ))}
-        </div>
-        <Button variant="primary" className="w-full" disabled={!tpl || busy} onClick={go}>Start {label} costing</Button>
-      </div>
-    </div>
   );
 }

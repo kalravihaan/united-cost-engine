@@ -140,6 +140,8 @@ export interface ActualParams {
   profitPctAddsValueLossPct: boolean;
   /** Free-text notes found in column G */
   notes: string[];
+  /** Section keys (FABRIC_ORDER, CMT, TRIMS, LD_CHARGES, REJECT) removed for this style; their lines are flagged removed too */
+  removedSections?: string[];
 }
 
 export interface ClientSectionDef {
@@ -147,6 +149,8 @@ export interface ClientSectionDef {
   label: string;
   /** MAIN rows are summed into "Total" (L37). POST_TOTAL rows are added after it (Testing, Garment Rejection, Overhead+Margin). */
   phase: "MAIN" | "POST_TOTAL";
+  /** Header removed for this style (its lines are flagged removed too; restorable) */
+  removed?: boolean;
 }
 
 export interface ClientParams {

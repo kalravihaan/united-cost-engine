@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { MASTERS, type MasterDef, type MasterField } from "@/data/masterConfig";
@@ -24,6 +25,7 @@ export function MastersPage() {
             {m.label}
           </button>
         ))}
+        <Link href="/templates" className="mt-1 flex w-full items-center rounded-md border-t border-line px-2.5 py-1.5 pt-2 text-left text-[12.5px] font-medium text-ink-2 hover:bg-black/5">Costing Templates →</Link>
       </nav>
       <MasterTable key={active.name} def={active} />
     </div>

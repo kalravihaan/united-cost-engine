@@ -2,40 +2,29 @@
 import * as React from "react";
 import { ChevronDown, ChevronRight, Link2, AlertTriangle } from "lucide-react";
 import type { ComparisonResult } from "@/lib/calculations";
-import type { CostingDoc } from "@/types/costing";
 import { cn, money, pct, rupee } from "@/lib/format";
 import { Badge, EmptyState } from "@/components/ui/primitives";
-import { Combobox } from "@/components/ui/overlay";
-import { api } from "@/features/costing/api";
-import type { Pairing } from "@/features/costing/useWorkspace";
 
-export function ComparisonPanel({ comparison, hasActual, hasClient, styleNumber, onPair, onClearPair, pairing, docs }: { comparison: { cmp: ComparisonResult; paired: boolean; label: string | null } | null; hasActual: boolean; hasClient: boolean; styleNumber: string; onPair: (p: Pairing) => void; onClearPair: () => void; pairing: Pairing | null; docs: { ACTUAL: CostingDoc | null; CLIENT: CostingDoc | null } }) {
-  if (!comparison) {
-    const missing = !hasActual && !hasClient ? null : !hasActual ? "ACTUAL" : "CLIENT";
+export function ComparisonPanel({ cmp, styleNumber, actualEmpty, clientEmpty }: { cmp: ComparisonResult | null; styleNumber: string; actualEmpty: boolean; clientEmpty: boolean }) {
+  if (!cmp) {
     return (
       <div className="p-4">
-        <EmptyState title="Comparison needs both costings of the same style" icon={<Link2 size={22} />}>
-          {missing ? `Style ${styleNumber} has no ${missing === "ACTUAL" ? "Actual" : "Client"} costing.` : `Style ${styleNumber} has neither costing yet.`} Start one from a template, or explicitly pair this style with a costing of another style to see how the two datasets differ.
+        <EmptyState title="Comparison is not available yet" icon={<Link2 size={22} />}>
+          Both costings of style {styleNumber} start from their default templates. If a template is missing, build it under Templates.
         </EmptyState>
-        {missing && <PairPicker missing={missing} onPair={onPair} />}
       </div>
     );
   }
-  const { cmp, paired, label } = comparison;
   const t = cmp.totals;
   const premiumTone = t.premiumPct === null ? "text-ink" : t.premiumPct >= 0 ? "text-client" : "text-bad";
-  void docs;
   return (
     <div className="space-y-4 p-4">
-      {paired && (
-        <div className="flex items-start justify-between gap-3 rounded-md border border-warn/30 bg-warn-soft/60 px-3 py-2 text-[12.5px] text-ink-2">
-          <div className="flex gap-2">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-warn" />
-            <span>
-              <b>Manual pairing.</b> {label} is paired with style {styleNumber} by your choice – the two costings are not for the same style, so the differences are illustrative of structure, not of one garment.
-            </span>
-          </div>
-          <button onClick={onClearPair} className="shrink-0 text-[12px] font-medium text-accent hover:underline">Remove pairing</button>
+      {(actualEmpty || clientEmpty) && (
+        <div className="flex items-start gap-2 rounded-md border border-warn/30 bg-warn-soft/60 px-3 py-2 text-[12.5px] text-ink-2">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-warn" />
+          <span>
+            {actualEmpty && clientEmpty ? "Neither costing has values yet." : actualEmpty ? "The Actual costing has no values yet." : "The Client costing has no values yet."} Differences become meaningful as quantities and rates are entered; they update live.
+          </span>
         </div>
       )}
       <div className="grid grid-cols-4 gap-3">
@@ -117,7 +106,6 @@ export function ComparisonPanel({ comparison, hasActual, hasClient, styleNumber,
           <li key={i}>• {n}</li>
         ))}
       </ul>
-      {pairing && !paired && null}
     </div>
   );
 }
@@ -172,32 +160,6 @@ function Line({ k, v, strong }: { k: string; v: string; strong?: boolean }) {
     <div className="flex items-baseline justify-between gap-3">
       <dt className={cn("text-ink-2", strong && "font-semibold text-ink")}>{k}</dt>
       <dd className={cn("num", strong ? "font-bold" : "font-medium")}>{v}</dd>
-    </div>
-  );
-}
-
-function PairPicker({ missing, onPair }: { missing: "ACTUAL" | "CLIENT"; onPair: (p: Pairing) => void }) {
-  const [opts, setOpts] = React.useState<Array<{ styleId: string; styleNumber: string; color: string | null; versionNo: number }>>([]);
-  const [val, setVal] = React.useState<string | null>(null);
-  React.useEffect(() => {
-    api.templates(missing).then(setOpts).catch(() => setOpts([]));
-  }, [missing]);
-  return (
-    <div className="mx-auto mt-2 max-w-md rounded-lg border border-line bg-surface-2 p-3">
-      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">Pair with an existing {missing === "ACTUAL" ? "Actual" : "Client"} costing (manual)</div>
-      <Combobox
-        value={val}
-        options={opts.map((o) => ({ value: o.styleId, label: `${o.styleNumber}${o.color ? ` · ${o.color}` : ""}`, hint: `v${o.versionNo}` }))}
-        onChange={async (id) => {
-          setVal(id);
-          if (!id) return;
-          const w = await api.workspace(id);
-          const v = missing === "ACTUAL" ? w.actual : w.client;
-          if (v) onPair({ type: missing, doc: v.doc, label: `${missing === "ACTUAL" ? "Actual" : "Client"} costing of style ${w.style.number} (v${v.versionNo})` });
-        }}
-        placeholder="Choose a style…"
-        searchPlaceholder="Search style…"
-      />
     </div>
   );
 }

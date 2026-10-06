@@ -16,7 +16,7 @@ export const runtime = "nodejs";
  * by the engine from the posted document, never taken from the client.
  */
 export const POST = handle(async (req, _ctx, user) => {
-  const b = await readJson<{ styleId: string; doc: unknown; format: "pdf" | "xlsx"; versionNo?: number | null; unsaved?: boolean; pairedDoc?: unknown }>(req);
+  const b = await readJson<{ styleId: string; doc: unknown; format: "pdf" | "xlsx"; versionNo?: number | null; unsaved?: boolean; otherDoc?: unknown }>(req);
   if (b.format !== "pdf" && b.format !== "xlsx") throw new Error("Invalid export format");
   const parsed = costingDocSchema.safeParse(b.doc);
   if (!parsed.success) throw new Error("Invalid costing document");
@@ -28,13 +28,14 @@ export const POST = handle(async (req, _ctx, user) => {
   const [cadRow, imageFile, rules] = await Promise.all([cadRepository.latestForStyle(style.id), style.imageFileId ? fileRepository.byId(style.imageFileId) : null, getRuleSet()]);
   const image = imageFile ? await downscaleImage(await fileStore().get(imageFile.storagePath), imageFile.mimeType) : null;
 
-  // other costing of the same style (saved) – or an explicit pairing posted by the user
+  // the other mode's costing of the same style: the working copy posted by the screen, else the latest saved one
   const otherType = doc.type === "ACTUAL" ? "CLIENT" : "ACTUAL";
-  const saved = await costingRepository.latest(style.id, otherType);
-  let other: { doc: CostingDoc; paired: boolean; label?: string } | null = saved ? { doc: saved.doc as unknown as CostingDoc, paired: false } : null;
-  if (!other && b.pairedDoc) {
-    const p = costingDocSchema.safeParse(b.pairedDoc);
-    if (p.success) other = { doc: p.data as unknown as CostingDoc, paired: true, label: `${otherType} costing of style ${p.data.style.number}` };
+  let other: { doc: CostingDoc; paired: boolean; label?: string } | null = null;
+  const posted = b.otherDoc ? costingDocSchema.safeParse(b.otherDoc) : null;
+  if (posted?.success && posted.data.type === otherType) other = { doc: posted.data as unknown as CostingDoc, paired: false };
+  else {
+    const saved = await costingRepository.latest(style.id, otherType);
+    if (saved) other = { doc: saved.doc as unknown as CostingDoc, paired: false };
   }
 
   const input = {
