@@ -10,6 +10,20 @@ CAD marker PDFs feed fabric consumption; every number carries its provenance; ev
 
 > Study of the three source files and the field-by-field mapping: **[docs/DATA_MODEL.md](docs/DATA_MODEL.md)**
 
+## Try it locally (fastest path)
+
+```bash
+docker compose up -d            # PostgreSQL (skip if you already have one; then edit DATABASE_URL in .env)
+cp .env.example .env
+npm install
+npm run setup:local             # creates the tables and loads the supplied source files
+npm run dev                     # open http://localhost:3000
+```
+
+Suggested tour: open style **5008** (client costing + photo) → switch to **ACTUAL COSTING**, open style **78290** →
+open style **72232** (CAD already loaded) → start a Client costing from template 5008 → *Apply CAD to costing* → edit a rate →
+*Save version* → *Versions* / *Audit* tabs → *Comparison* tab.
+
 ## Run it
 
 Requirements: Node 22, PostgreSQL 14+.
