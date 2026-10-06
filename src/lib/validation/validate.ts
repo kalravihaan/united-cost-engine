@@ -73,7 +73,7 @@ export function validateCosting(ctx: ValidationContext): ValidationIssue[] {
     const seen = new Map<string, CostLine>();
     for (const l of live) {
       const key = `${l.sectionKey}|${l.item.trim().toLowerCase()}`;
-      if (!l.item.trim()) continue;
+      if (!l.item.trim() || !isFilled(l)) continue; // blank template slots (e.g. three empty "Fabric" rows) are not duplicates
       const prev = seen.get(key);
       if (prev) out.push(issue("warning", "DUPLICATE_COMPONENT", `Duplicate component "${l.item}" in ${l.sectionLabel}.`, { lineId: l.id }));
       else seen.set(key, l);

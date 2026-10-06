@@ -1,26 +1,110 @@
 @import "tailwindcss";
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
 
+/*
+ * Design tokens. Restrained enterprise palette: cool neutrals, one ink accent, and two
+ * mode accents so Actual vs Client is recognisable at a glance without decoration.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f9fafb;
+  --line: #e4e7ec;
+  --line-strong: #cfd4dc;
+  --ink: #101828;
+  --ink-2: #475467;
+  --ink-3: #8a94a6;
+  --accent: #1d3557;
+  --accent-soft: #e8eef7;
+  --actual: #8a4b08;
+  --actual-soft: #fbf1e3;
+  --client: #1d4f91;
+  --client-soft: #e7f0fb;
+  --ok: #0f7b4f;
+  --ok-soft: #e4f5ec;
+  --warn: #b45309;
+  --warn-soft: #fef3e2;
+  --bad: #b42318;
+  --bad-soft: #fdecea;
+  --cad: #0e7490;
+  --cad-soft: #e0f4f8;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-actual: var(--actual);
+  --color-actual-soft: var(--actual-soft);
+  --color-client: var(--client);
+  --color-client-soft: var(--client-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-cad: var(--cad);
+  --color-cad-soft: var(--cad-soft);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  font-feature-settings: "cv11", "ss01";
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* thin scrollbars for dense tables */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-in {
+  animation: fade-in 140ms ease-out;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }

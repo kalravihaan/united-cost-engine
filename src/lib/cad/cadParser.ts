@@ -231,7 +231,7 @@ export function parseCadText(pdf: PdfText): CadData {
   const length = lenField("length", "m");
   const width = lenField("width", "in");
   let lengthPerSet = lenField("lengthPerSet", "m");
-  let totalLength = lenField("totalLength", "m");
+  const totalLength = lenField("totalLength", "m");
 
   /* efficiency */
   const effSeg = first("efficiency");

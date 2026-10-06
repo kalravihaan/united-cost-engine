@@ -6,6 +6,12 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // Override default ignores of eslint-config-next.
+  {
+    rules: {
+      // Fetch-on-mount / sync-from-props effects are used deliberately in the client features.
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",

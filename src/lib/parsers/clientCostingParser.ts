@@ -113,6 +113,8 @@ export interface ParsedClientSheet {
   images: SheetImage[];
   /** columns found, field → letter (for the import report) */
   columns: Record<string, string>;
+  /** UOM list the workbook offers in its Quantity UOM drop-down (data validation range), when present */
+  uomOptions: string[];
 }
 
 export interface ParsedClientWorkbook {
@@ -174,6 +176,26 @@ function findSummary(
     }
   }
   return out;
+}
+
+/** Values of the range used as list-validation source of the Quantity UOM column (e.g. $AB$3:$AB$5). */
+function readUomOptions(ws: Sheet, uomCol: number | undefined): string[] {
+  if (!uomCol) return [];
+  const model = (ws as unknown as { dataValidations?: { model?: Record<string, { type?: string; formulae?: string[] }> } }).dataValidations?.model ?? {};
+  for (const [addr, dv] of Object.entries(model)) {
+    const m = addr.match(/^([A-Z]+)\d+/);
+    if (!m || colIndex(m[1]) !== uomCol || dv.type !== "list") continue;
+    const f = dv.formulae?.[0]?.match(/^\$?([A-Z]+)\$?(\d+):\$?([A-Z]+)\$?(\d+)$/);
+    if (!f) continue;
+    const col = colIndex(f[1]);
+    const out: string[] = [];
+    for (let r = Number(f[2]); r <= Number(f[4]); r++) {
+      const v = text(readCell(ws, r, col));
+      if (v) out.push(v);
+    }
+    if (out.length) return out;
+  }
+  return [];
 }
 
 export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, fileName: string, importedAt: string): ParsedClientSheet {
@@ -408,7 +430,7 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
   };
   if (skippedBlank > 0) issues.push({ level: "info", code: "BLANK_SLOTS", message: `${sheet}: ${skippedBlank} empty template rows (no item, description or value) were not turned into cost lines.` });
 
-  return { doc, cached, overheadTiers, images: extractSheetImages(wb, ws), columns: colLetters };
+  return { doc, cached, overheadTiers, images: extractSheetImages(wb, ws), columns: colLetters, uomOptions: readUomOptions(ws, cols.uom) };
 }
 
 export async function parseClientWorkbook(

@@ -1,3 +1,13 @@
+// United Cost Engine – PostgreSQL schema
+//
+// Principles
+//  * Masters (customer/brand/category/style/…) are separate from costing data. The calculation
+//    engine never reads them; a style is mapped to a customer/brand only through Style.
+//  * Costing data is stored as immutable JSON snapshots (CostingVersion.doc = the normalized
+//    CostingDoc incl. per-field provenance/overrides, .result = engine output). A new save is a new
+//    version; rows are never updated or deleted by the application.
+//  * AuditEvent is append-only.
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -7,6 +17,290 @@ datasource db {
   provider = "postgresql"
 }
 
-model Probe {
-  id Int @id @default(autoincrement())
+enum CostingType {
+  ACTUAL
+  CLIENT
+}
+
+enum VersionSource {
+  IMPORT // read from a source workbook
+  TEMPLATE // started from another costing
+  MANUAL // saved from the UI
+}
+
+enum FileKind {
+  STYLE_IMAGE
+  CAD_PDF
+  CAD_PREVIEW
+  SOURCE_WORKBOOK
+}
+
+// ───────────── masters ─────────────
+
+model Customer {
+  id        String   @id @default(cuid())
+  code      String?  @unique
+  name      String   @unique
+  active    Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  brands    Brand[]
+  styles    Style[]
+}
+
+model Brand {
+  id         String   @id @default(cuid())
+  customerId String
+  name       String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  customer   Customer @relation(fields: [customerId], references: [id])
+  styles     Style[]
+
+  @@unique([customerId, name])
+}
+
+/// Style categories. The initial rows come from the client workbook's "Overhead + margin" table
+/// (Core & Ultimate / Fashion / High Fashion).
+model Category {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  /// fraction, 0.08 = 8 %
+  overheadMarginRate Float?
+  /// value under the "Qty" header of the source table
+  qty                Int?
+  source             String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  styles             Style[]
+}
+
+model Style {
+  id          String   @id @default(cuid())
+  /// text – "0556" keeps its zero
+  number      String   @unique
+  description String?
+  color       String?
+  customerId  String?
+  brandId     String?
+  categoryId  String?
+  imageFileId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer Customer?       @relation(fields: [customerId], references: [id])
+  brand    Brand?          @relation(fields: [brandId], references: [id])
+  category Category?       @relation(fields: [categoryId], references: [id])
+  aliases  StyleAlias[]
+  costings Costing[]
+  files    StoredFile[]
+  cadRuns  CadExtraction[]
+  audits   AuditEvent[]
+}
+
+/// Confirmed alternative names ("GETKRTSCUT5008 - BLACK" → style 5008). Only created by an explicit user confirmation.
+model StyleAlias {
+  id          String   @id @default(cuid())
+  styleId     String
+  alias       String
+  source      String? // e.g. "client_costing.xlsx Product ID"
+  confirmedBy String
+  confirmedAt DateTime @default(now())
+  style       Style    @relation(fields: [styleId], references: [id], onDelete: Cascade)
+
+  @@unique([alias])
+}
+
+model Uom {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  name      String?
+  /// free text hint only, e.g. "length", "count" – never used to rename source values
+  dimension String?
+  source    String?
+  active    Boolean @default(true)
+}
+
+/// Costing sections ("Cost Categories"): actual FABRIC ORDER/CMT/TRIMS/…, client Fabric/Sewing trims/…
+model CostSection {
+  id          String      @id @default(cuid())
+  costingType CostingType
+  key         String
+  label       String
+  /// client: MAIN (summed into Total) or POST_TOTAL
+  phase       String?
+  sortOrder   Int         @default(0)
+  active      Boolean     @default(true)
+
+  @@unique([costingType, key])
+}
+
+model CostItem {
+  id          String      @id @default(cuid())
+  costingType CostingType
+  sectionKey  String
+  name        String
+  defaultUom  String?
+  itemType    String?
+  source      String?
+  active      Boolean     @default(true)
+
+  @@unique([costingType, sectionKey, name])
+}
+
+model FabricMaster {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  fabricType    String?
+  fabricFinish  String?
+  construction  String?
+  knitGauge     String?
+  cuttableWidth String?
+  defaultUom    String?
+  lastRate      Float?
+  source        String?
+  updatedAt     DateTime @updatedAt
+}
+
+model RateMaster {
+  id          String      @id @default(cuid())
+  costingType CostingType
+  sectionKey  String
+  itemName    String
+  rate        Float
+  uom         String?
+  gstRate     Float?
+  source      String?
+  styleNumber String?
+  effectiveAt DateTime    @default(now())
+
+  @@index([costingType, itemName])
+}
+
+/// Editable configuration: comparison grouping rules + CAD mapping rules (JSON payload = src/types/rules.ts)
+model CostingRule {
+  id        String   @id @default(cuid())
+  kind      String // GROUP | CAD_MAPPING
+  ruleKey   String
+  payload   Json
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, ruleKey])
+}
+
+// ───────────── files / CAD ─────────────
+
+model StoredFile {
+  id           String   @id @default(cuid())
+  kind         FileKind
+  originalName String
+  mimeType     String
+  size         Int
+  sha256       String
+  /// relative to STORAGE_DIR
+  storagePath  String
+  styleId      String?
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+  style        Style?   @relation(fields: [styleId], references: [id])
+
+  @@index([sha256])
+  @@index([styleId, kind])
+}
+
+/// One row per extraction or manual correction (immutable revisions).
+model CadExtraction {
+  id                String   @id @default(cuid())
+  styleId           String
+  fileId            String
+  revision          Int      @default(1)
+  parserVersion     String
+  data              Json // CadData incl. manual edits
+  styleNumberRead   String?
+  needsVerification Boolean  @default(false)
+  createdBy         String
+  createdAt         DateTime @default(now())
+  style             Style    @relation(fields: [styleId], references: [id])
+
+  @@unique([styleId, fileId, revision])
+  @@index([styleId, createdAt])
+}
+
+// ───────────── costings (versioned) ─────────────
+
+model Costing {
+  id        String           @id @default(cuid())
+  styleId   String
+  type      CostingType
+  createdAt DateTime         @default(now())
+  style     Style            @relation(fields: [styleId], references: [id])
+  versions  CostingVersion[]
+
+  @@unique([styleId, type])
+}
+
+model CostingVersion {
+  id            String        @id @default(cuid())
+  costingId     String
+  versionNo     Int
+  sourceKind    VersionSource
+  sourceFile    String?
+  sourceSheet   String?
+  importBatchId String?
+  /// normalized CostingDoc (lines, per-field provenance, overrides, CAD snapshot)
+  doc           Json
+  /// engine output at save time
+  result        Json
+  engineVersion String
+  /// indexed headline numbers (also inside `result`)
+  totalCost     Float?
+  costPerPc     Float?
+  finalPoPrice  Float?
+  /// field-level diff versus the previous version
+  changedFields Json
+  note          String?
+  createdBy     String
+  createdAt     DateTime      @default(now())
+  calculatedAt  DateTime      @default(now())
+  costing       Costing       @relation(fields: [costingId], references: [id])
+  importBatch   ImportBatch?  @relation(fields: [importBatchId], references: [id])
+
+  @@unique([costingId, versionNo])
+  @@index([costingId, createdAt])
+}
+
+model ImportBatch {
+  id         String           @id @default(cuid())
+  kind       CostingType
+  fileName   String
+  sha256     String
+  fileId     String?
+  sheetCount Int
+  created    Int
+  skipped    Int
+  report     Json
+  createdBy  String
+  createdAt  DateTime         @default(now())
+  versions   CostingVersion[]
+}
+
+model AuditEvent {
+  id               String   @id @default(cuid())
+  at               DateTime @default(now())
+  userName         String
+  action           String
+  entityType       String
+  entityId         String?
+  styleId          String?
+  costingVersionId String?
+  details          Json
+  style            Style?   @relation(fields: [styleId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([styleId, at])
 }
