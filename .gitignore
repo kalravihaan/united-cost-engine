@@ -48,3 +48,7 @@ next-env.d.ts
 
 # standalone simulator build output
 /dist-simulator/
+
+# single-file build
+/dist-standalone/
+/standalone/gen/

@@ -69,6 +69,23 @@ CAD reader (pdf.js), Excel and PDF exporters in a browser. Create several styles
 remove headers, compare Actual vs Client and export Excel / PDF. Entries are kept in the browser only (no server, no database).
 It is a trial tool, not the multi-user system (no shared data, versions live in the browser).
 
+## Single-file version (no install, no server, no database)
+
+`npm run standalone:build` produces **`dist-standalone/cost-engine.html`** (about 6 MB): the *whole* Cost Engine in one file you can open by double-clicking it
+(Chrome / Edge / Firefox). It is the real application, not a demo: the same screens (Cost Engine, Styles, Templates, Masters), the same API handlers and
+services, the same calculation engine, CAD reader, versions, audit trail, comparison and Excel / PDF export. Only the infrastructure is swapped:
+
+| Full app | Single file |
+|---|---|
+| PostgreSQL via Prisma | an in-memory, Prisma-compatible store generated from `prisma/schema.prisma` (`standalone/memdb.ts`); the same database integration tests pass against it (`npm run test:standalone`) |
+| uploads on disk | uploads inside the data (images, CAD PDFs) |
+| Next.js server routes | the same route handlers, called by an in-page `fetch` |
+| Node PDF / canvas | the browser's own PDF.js and canvas |
+
+**Where the data lives:** it is auto-saved in the browser (IndexedDB) after every change. For anything you care about, use **Save data file** (bottom-left bar): one
+`.ucedata` file with all styles, costings, versions, audit trail and uploads. **Open data file** loads it (on another computer, or to share), **Start empty** restores the
+default templates. Limits: one person at a time, no login, data is per browser/computer unless you pass the data file around. Use the PostgreSQL version for a shared system.
+
 ## Using it (workflow)
 
 1. **Customer / Brand** (masters; empty until you add them).
@@ -146,6 +163,6 @@ Uploads go through a `FileStore` interface (local disk now, swap for S3/GCS).
 
 ## Tests
 
-`npm test` – 71 tests: engine verification against all 28 reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
+`npm test` – 71 tests (and `npm run test:standalone` runs the 6 database tests against the single-file store): engine verification against all 28 reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
 GST, finance/transport/final PO, CAD extraction (supplied PDF + alternative layouts + no-text-layer), style matching, validation, overrides,
 CAD → costing mapping, comparison reconciliation, templates, version diffs, per-customer client layouts (YOUSTA template, values typed in reproduce two real customer sheets' totals, Excel output and *excel update* sheet), and (with `TEST_DATABASE_URL`) DB templates/layouts/versioning/audit/CAD revisions.

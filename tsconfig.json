@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "simulator/entry.ts", "simulator/make-data.ts"]
+  "exclude": ["node_modules", "simulator/entry.ts", "simulator/make-data.ts", "standalone/entry.tsx", "standalone/runtime.ts", "standalone/make-seed.ts", "standalone/gen/seed.json"]
 }
