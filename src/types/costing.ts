@@ -153,7 +153,36 @@ export interface ClientSectionDef {
   removed?: boolean;
 }
 
+/** Which customer layout a client costing follows (each brand/customer can have its own default rows and price chain). */
+export interface ClientFormat {
+  /** DEFAULT = the original layout; otherwise a format key such as YOUSTA */
+  key: string;
+  label: string;
+  /** How the Excel output of this layout looks (learnt from the customer's own sheet) */
+  export?: {
+    /** worksheet name used by the customer's sheet */
+    sheetName?: string;
+    /** column letter → header text of the customer's sheet */
+    headers?: Record<string, string>;
+    /** the customer's workbook also has a one-row "excel update" sheet that links to the costing sheet */
+    updateSheet?: boolean;
+  };
+}
+
+/** How the final price is presented. Absent = the original chain (FOB → finance cost → FINAL PO PRICE → transport). */
+export interface ClientPricing {
+  /** Label of the final price line, e.g. "FINAL PO PRICE NON-MSME VENDOR" */
+  finalPriceLabel: string;
+  /** false: the layout has no finance cost row (final price = Total Cost) */
+  finance: boolean;
+  /** false: the layout has no transport row */
+  transport: boolean;
+}
+
 export interface ClientParams {
+  /** Layout this costing follows (set from the style's brand/customer; DEFAULT when absent) */
+  format?: ClientFormat;
+  pricing?: ClientPricing;
   /** Memo lines found in column A below Product ID */
   headerNotes: string[];
   /** Selected category from the Overhead + margin table (Core & Ultimate / Fashion / High Fashion) */

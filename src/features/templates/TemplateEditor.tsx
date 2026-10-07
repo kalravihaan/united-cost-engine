@@ -10,24 +10,24 @@ import { api } from "@/features/costing/api";
 import { ActualTable, ClientTable } from "@/features/costing/CostingTable";
 
 /** Edit the default headers/rows of a mode. Quantities and rates are not part of a template. */
-export function TemplateEditor({ type }: { type: "ACTUAL" | "CLIENT" }) {
+export function TemplateEditor({ type, format }: { type: "ACTUAL" | "CLIENT"; format?: string }) {
   const toast = useToast();
   const [doc, setDoc] = React.useState<CostingDoc | null | undefined>(undefined);
   const [version, setVersion] = React.useState(0);
   const [dirty, setDirty] = React.useState(false);
   const [uoms, setUoms] = React.useState<string[]>([]);
   React.useEffect(() => {
-    api.template(type).then((t) => { setDoc(t.doc); setVersion(t.version); }).catch(() => setDoc(null));
+    api.template(type, format).then((t) => { setDoc(t.doc); setVersion(t.version); }).catch(() => setDoc(null));
     api.masterList("uoms").then((r) => setUoms((r as Array<{ code: string }>).map((x) => x.code))).catch(() => {});
-  }, [type]);
+  }, [type, format]);
   const result = React.useMemo(() => (doc ? (doc.type === "ACTUAL" ? calculateActualCost(doc) : calculateClientCost(doc)) : null), [doc]);
-  const label = type === "ACTUAL" ? "Actual costing" : "Client costing";
+  const label = type === "ACTUAL" ? "Actual costing" : `Client costing${doc && doc.type === "CLIENT" && doc.client.format ? ` · ${doc.client.format.label}` : ""}`;
   const save = async () => {
     if (!doc) return;
     try {
-      const r = await api.saveTemplate(type, doc);
+      const r = await api.saveTemplate(type, doc, format);
       toast.push({ kind: "ok", title: `${label} template saved (v${r.version})`, body: "New costings start from this structure. Existing costings are not changed." });
-      const t = await api.template(type);
+      const t = await api.template(type, format);
       setDoc(t.doc);
       setVersion(t.version);
       setDirty(false);

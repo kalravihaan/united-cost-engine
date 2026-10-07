@@ -29,7 +29,7 @@ export function ComparisonPanel({ cmp, styleNumber, actualEmpty, clientEmpty }: 
       )}
       <div className="grid grid-cols-4 gap-3">
         <Kpi label="Actual cost / pc" value={rupee(t.actualPerPc)} tone="actual" sub={`Total ${rupee(t.actualTotal)}`} />
-        <Kpi label="Client cost / pc" value={rupee(t.clientPerPc)} tone="client" sub={`Final PO incl. transport ${rupee(cmp.clientPriceChain.finalPoPriceInclTransport)}`} />
+        <Kpi label="Client cost / pc" value={rupee(t.clientPerPc)} tone="client" sub={`${cmp.clientPriceChain.hasTransport ? "Final PO incl. transport" : cmp.clientPriceChain.finalPriceLabel} ${rupee(cmp.clientPriceChain.finalPoPriceInclTransport)}`} />
         <Kpi label="Difference / pc" value={rupee(t.differencePerPc, { sign: true })} sub={`Total ${rupee(t.differenceTotal, { sign: true })}`} />
         <Kpi label="Client premium" value={pct(t.premiumPct)} valueClass={premiumTone} sub="(client − actual) ÷ actual" />
       </div>
@@ -82,11 +82,20 @@ export function ComparisonPanel({ cmp, styleNumber, actualEmpty, clientEmpty }: 
         <div className="rounded-lg border border-line p-3">
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">Client price chain / pc</div>
           <dl className="space-y-1.5 text-[12.5px]">
-            <Line k="Total Cost = FOB Price" v={rupee(cmp.clientPriceChain.fobPrice)} />
-            <Line k="Finance cost" v={rupee(cmp.clientPriceChain.financeCost)} />
-            <Line k="FINAL PO PRICE" v={rupee(cmp.clientPriceChain.finalPoPrice)} />
-            <Line k="Transport" v={rupee(cmp.clientPriceChain.transport)} />
-            <Line k="FINAL PO PRICE Incl Transport" v={rupee(cmp.clientPriceChain.finalPoPriceInclTransport)} strong />
+            {cmp.clientPriceChain.hasFinance || cmp.clientPriceChain.hasTransport ? (
+              <>
+                <Line k="Total Cost = FOB Price" v={rupee(cmp.clientPriceChain.fobPrice)} />
+                <Line k="Finance cost" v={rupee(cmp.clientPriceChain.financeCost)} />
+                <Line k="FINAL PO PRICE" v={rupee(cmp.clientPriceChain.finalPoPrice)} />
+                <Line k="Transport" v={rupee(cmp.clientPriceChain.transport)} />
+                <Line k="FINAL PO PRICE Incl Transport" v={rupee(cmp.clientPriceChain.finalPoPriceInclTransport)} strong />
+              </>
+            ) : (
+              <>
+                <Line k="Total Cost" v={rupee(cmp.clientPriceChain.fobPrice)} />
+                <Line k={cmp.clientPriceChain.finalPriceLabel} v={rupee(cmp.clientPriceChain.finalPoPrice)} strong />
+              </>
+            )}
           </dl>
         </div>
       </div>

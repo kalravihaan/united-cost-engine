@@ -20,7 +20,7 @@ export interface MasterField {
 export interface MasterDef {
   name: string;
   label: string;
-  model: "customer" | "brand" | "category" | "style" | "uom" | "costSection" | "costItem" | "fabricMaster" | "rateMaster" | "costingRule" | "styleAlias";
+  model: "clientFormat" | "customer" | "brand" | "category" | "style" | "uom" | "costSection" | "costItem" | "fabricMaster" | "rateMaster" | "costingRule" | "styleAlias";
   description: string;
   /** primary text shown for a row (ref options) */
   display: string;
@@ -37,8 +37,18 @@ export const MASTERS: MasterDef[] = [
     fields: [
       { key: "name", label: "Name", type: "text", required: true, list: true },
       { key: "code", label: "Code", type: "text", list: true },
+      { key: "clientFormatId", label: "Client costing layout", type: "ref", ref: "clientFormats", list: true },
       { key: "active", label: "Active", type: "boolean", list: true },
       { key: "notes", label: "Notes", type: "text" },
+    ],
+  },
+  {
+    name: "clientFormats", label: "Client layouts", model: "clientFormat", display: "label", orderBy: "label", noCreate: true,
+    description: "Client-costing layouts (default rows, headers and price chain per customer/brand). Created on the Templates page by learning a reference workbook; a brand's layout wins over its customer's.",
+    fields: [
+      { key: "key", label: "Key", type: "text", readOnly: true, list: true },
+      { key: "label", label: "Name", type: "text", required: true, list: true },
+      { key: "active", label: "Active", type: "boolean", list: true },
     ],
   },
   {
@@ -47,6 +57,7 @@ export const MASTERS: MasterDef[] = [
     fields: [
       { key: "name", label: "Brand", type: "text", required: true, list: true },
       { key: "customerId", label: "Customer", type: "ref", ref: "customers", required: true, list: true },
+      { key: "clientFormatId", label: "Client costing layout", type: "ref", ref: "clientFormats", list: true },
       { key: "active", label: "Active", type: "boolean", list: true },
     ],
   },

@@ -1,7 +1,7 @@
-import type { CostingDoc } from "@/types/costing";
+import type { ClientFormat, CostingDoc } from "@/types/costing";
 import { parseActualWorkbook } from "@/lib/parsers/actualCostingParser";
 import { parseClientWorkbook } from "@/lib/parsers/clientCostingParser";
-import { buildActualTemplate, buildClientTemplate } from "@/lib/parsers/templateBuilder";
+import { buildActualTemplate, buildClientTemplate, DEFAULT_CLIENT_FORMAT } from "@/lib/parsers/templateBuilder";
 import { compactDoc } from "@/lib/calculations/sections";
 import { costingDocSchema } from "@/lib/validation/schema";
 import { uomDimension } from "@/lib/normalization/labels";
@@ -9,32 +9,49 @@ import { prisma } from "@/server/db";
 import { fileStore } from "@/server/fileStore";
 import { fileRepository } from "@/server/repositories/files";
 import { auditRepository } from "@/server/repositories/audit";
-import { templateRepository } from "@/server/repositories/templates";
+import { DEFAULT_FORMAT, templateRepository } from "@/server/repositories/templates";
 
-export async function getTemplate(type: "ACTUAL" | "CLIENT") {
-  const t = await templateRepository.get(type);
+const formatKeyOf = (type: "ACTUAL" | "CLIENT", format?: string | null) => (type === "CLIENT" && format ? format.trim().toUpperCase() : DEFAULT_FORMAT);
+
+export async function getTemplate(type: "ACTUAL" | "CLIENT", format?: string | null) {
+  const key = formatKeyOf(type, format);
+  const t = await templateRepository.get(type, key);
   if (!t) return null;
-  return { type, version: t.version, doc: t.doc as unknown as CostingDoc, source: t.source, updatedBy: t.updatedBy, updatedAt: t.updatedAt.toISOString() };
+  return { type, format: key, version: t.version, doc: t.doc as unknown as CostingDoc, source: t.source, updatedBy: t.updatedBy, updatedAt: t.updatedAt.toISOString() };
 }
 
-export async function saveTemplate(type: "ACTUAL" | "CLIENT", input: unknown, user: string) {
+/** Client layouts that have a stored template (+ their display label). */
+export async function listClientFormats() {
+  const [rows, formats] = await Promise.all([templateRepository.list("CLIENT"), prisma.clientFormat.findMany({ where: { active: true } })]);
+  return rows.map((r) => {
+    const doc = r.doc as unknown as CostingDoc;
+    const f = formats.find((x) => x.key === r.formatKey);
+    return { key: r.formatKey, label: f?.label ?? (doc.type === "CLIENT" ? doc.client.format?.label : undefined) ?? r.formatKey, version: r.version, lines: doc.lines.length, active: f ? f.active : true };
+  });
+}
+
+export async function saveTemplate(type: "ACTUAL" | "CLIENT", input: unknown, user: string, format?: string | null) {
   const parsed = costingDocSchema.safeParse(input);
   if (!parsed.success) throw new Error(`Invalid template: ${parsed.error.issues[0]?.message ?? "bad shape"}`);
   const doc = parsed.data as unknown as CostingDoc;
   if (doc.type !== type) throw new Error("Template type mismatch");
   const clean = compactDoc(doc);
   // a template carries structure only: no quantities, rates, amounts or notes
-  clean.lines = clean.lines.map((l) => ({ ...l, quantity: null, rate: null, amount: l.calc === "ENTERED_AMOUNT" ? null : l.amount, description: "", attributes: {}, custom: false, removed: false }));
-  const row = await templateRepository.save(type, clean, "edited in Masters", user);
-  await auditRepository.log({ userName: user, action: "TEMPLATE_SAVE", entityType: "CostTemplate", entityId: row.id, details: { type, version: row.version, lines: clean.lines.length } });
-  return getTemplate(type);
+  clean.lines = clean.lines.map((l) => ({ ...l, quantity: null, rate: l.calc === "PERCENT_OF_SUBTOTAL" && l.prov.rate?.origin === "TEMPLATE" ? l.rate : null, amount: l.calc === "ENTERED_AMOUNT" ? null : l.amount, description: "", attributes: {}, custom: false, removed: false }));
+  const key = formatKeyOf(type, format);
+  if (clean.type === "CLIENT") clean.client = { ...clean.client, format: { key, label: clean.client.format?.label ?? key } };
+  const row = await templateRepository.save(type, clean, "edited in Masters", user, key);
+  await auditRepository.log({ userName: user, action: "TEMPLATE_SAVE", entityType: "CostTemplate", entityId: row.id, details: { type, format: key, version: row.version, lines: clean.lines.length } });
+  return getTemplate(type, key);
 }
 
 /**
  * Learn the structure (headers + rows) from a reference workbook and store it as the default template.
  * No costing values and no styles are imported.
  */
-export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", bytes: Buffer, fileName: string, user: string) {
+export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", bytes: Buffer, fileName: string, user: string, format?: { key: string; label?: string } | null) {
+  const key = formatKeyOf(type, format?.key);
+  const fmt: ClientFormat = key === DEFAULT_FORMAT ? { ...DEFAULT_CLIENT_FORMAT, ...(format?.label ? { label: format.label } : {}) } : { key, label: format?.label?.trim() || key };
   const put = await fileStore().put(bytes, { folder: "reference-workbooks", name: fileName });
   await fileRepository.create({ kind: "SOURCE_WORKBOOK", originalName: fileName, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size: put.size, sha256: put.sha256, storagePath: put.storagePath, uploadedBy: user });
   let doc: CostingDoc;
@@ -47,11 +64,12 @@ export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", by
   } else {
     const p = await parseClientWorkbook(bytes, fileName);
     if (!p.sheets.length) throw new Error(`No usable worksheet found: ${p.issues.map((i) => i.message).join("; ")}`);
-    doc = buildClientTemplate(p.sheets[0], fileName);
+    doc = buildClientTemplate(p.sheets[0], fileName, fmt);
     categories = p.sheets[0].overheadTiers.map((t) => ({ name: t.category, rate: t.rate, qty: t.qty, source: `${fileName} → ${t.ref.sheet}!${t.ref.cell}` }));
     uoms = [...p.sheets[0].uomOptions, ...doc.lines.map((l) => l.uom).filter((u): u is string => !!u)];
   }
-  const row = await templateRepository.save(type, doc, `reference: ${fileName}`, user);
+  const row = await templateRepository.save(type, doc, `reference: ${fileName}`, user, key);
+  if (type === "CLIENT") await prisma.clientFormat.upsert({ where: { key }, create: { key, label: fmt.label }, update: { label: fmt.label } });
   for (const c of categories) await prisma.category.upsert({ where: { name: c.name }, create: { name: c.name, overheadMarginRate: c.rate, qty: c.qty, source: c.source }, update: {} });
   for (const u of new Set(uoms)) await prisma.uom.upsert({ where: { code: u }, create: { code: u, source: `reference: ${fileName}`, dimension: uomDimension(u) }, update: {} });
   for (const [i, s] of (doc.type === "CLIENT" ? doc.client.sections : []).entries()) {
@@ -66,6 +84,6 @@ export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", by
     if (!l.item.trim()) continue;
     await prisma.costItem.upsert({ where: { costingType_sectionKey_name: { costingType: type, sectionKey: l.sectionKey, name: l.item.trim() } }, create: { costingType: type, sectionKey: l.sectionKey, name: l.item.trim(), defaultUom: l.uom, itemType: l.itemType, source: `reference: ${fileName}` }, update: {} });
   }
-  await auditRepository.log({ userName: user, action: "TEMPLATE_REBUILD", entityType: "CostTemplate", entityId: row.id, details: { type, fileName, lines: doc.lines.length } });
-  return { type, version: row.version, lines: doc.lines.length, sections: new Set(doc.lines.map((l) => l.sectionKey)).size };
+  await auditRepository.log({ userName: user, action: "TEMPLATE_REBUILD", entityType: "CostTemplate", entityId: row.id, details: { type, format: key, fileName, lines: doc.lines.length } });
+  return { type, format: key, version: row.version, lines: doc.lines.length, sections: new Set(doc.lines.map((l) => l.sectionKey)).size };
 }

@@ -47,14 +47,25 @@ Database integration tests run when `TEST_DATABASE_URL` points to a disposable d
 
 ### Default templates (what each new costing starts with)
 
-`npm run db:seed` builds the default headers/rows of each mode from the reference workbooks in `data/reference/` (structure only).
+`npm run db:seed` builds the default headers/rows from the reference workbooks in `data/reference/` (structure only): one **Actual** template and
+one **Client** template **per customer layout** (`DEFAULT` = the original GET layout, `YOUSTA` = the YAS… layout).
 Afterwards the templates belong to you: **Templates** page → *Edit structure* (add/rename/remove rows and headers, default UOM and GST) or
-*Rebuild from a reference workbook* (`npm run template -- actual|client file.xlsx`). Changing a template affects new costings only.
+*Rebuild from a reference workbook* (`npm run template -- actual|client file.xlsx [FORMAT_KEY ["Layout name"]]`). Changing a template affects new costings only.
+
+#### Client layouts per customer / brand
+Customers do not share one client sheet: the GET sheets and the YOUSTA sheets differ in headers, default rows, the single *CM* amount row and the price chain
+(YOUSTA has no finance / FOB / transport rows; its price is *FINAL PO PRICE NON-MSME VENDOR*).
+* **Templates → Add a client costing layout**: name it and drop one sheet of that customer's format; its headers, rows, GST/UOM defaults, vendor/brand block and fixed
+  percentages (e.g. YOUSTA Garment Rejection 2%, Overhead+Margin 12%, shown as *template default*) are learnt. No values or styles are stored.
+* **Masters → Brands / Customers → Client costing layout** assigns a layout (a brand's layout wins over its customer's). A style without a client costing opens with that layout;
+  the *Layout* selector on the costing can switch it until the first version is saved (it is then fixed for that style).
+* The layout also drives the **Excel output**: the customer's own sheet name and wording, the vendor/brand block, the single CM amount and the final-price row, plus the customer's
+  one-row *excel update* sheet (linked by live formulas to the costing sheet) when their workbook has one.
 
 ## Standalone simulator (no install, no database)
 
 `npm run simulator:build` produces `dist-simulator/simulator.html`: one self-contained page that runs the **same** calculation engine,
-CAD reader (pdf.js), Excel and PDF exporters in a browser. Create several styles, upload each CAD PDF, enter costing values, apply CAD,
+CAD reader (pdf.js), Excel and PDF exporters in a browser. Create several styles, upload each CAD PDF, pick the client layout (GET or YOUSTA; typing the customer *YOUSTA* selects it), enter costing values, apply CAD,
 remove headers, compare Actual vs Client and export Excel / PDF. Entries are kept in the browser only (no server, no database).
 It is a trial tool, not the multi-user system (no shared data, versions live in the browser).
 
@@ -135,6 +146,6 @@ Uploads go through a `FileStore` interface (local disk now, swap for S3/GCS).
 
 ## Tests
 
-`npm test` – 59 tests: engine verification against all 28 reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
+`npm test` – 71 tests: engine verification against all 28 reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
 GST, finance/transport/final PO, CAD extraction (supplied PDF + alternative layouts + no-text-layer), style matching, validation, overrides,
-CAD → costing mapping, comparison reconciliation, templates, version diffs, and (with `TEST_DATABASE_URL`) DB templates/versioning/audit/CAD revisions.
+CAD → costing mapping, comparison reconciliation, templates, version diffs, per-customer client layouts (YOUSTA template, values typed in reproduce two real customer sheets' totals, Excel output and *excel update* sheet), and (with `TEST_DATABASE_URL`) DB templates/layouts/versioning/audit/CAD revisions.

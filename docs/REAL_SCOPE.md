@@ -41,3 +41,13 @@ Findings were produced by running the existing engine/parsers over every file.
 3. The **export must follow the customer's format** (the YOUSTA sheet + its `excel update` row), because that file is what the customer receives.
 4. A **brand summary report** (PO value, actual cost, margin by style) is a third output, fed by the Actual + Client costings of the styles.
 5. Colourways share one costing; the colour lives in the header line.
+
+## 5. Status
+
+Implemented (see README → *Client layouts per customer / brand*):
+
+* Client templates keyed by layout (`DEFAULT` = GET, `YOUSTA`); layouts are learnt from a customer's sheet (Templates → *Add a client costing layout*) and assigned to brands / customers (Masters).
+* The YOUSTA sheets parse and reproduce their own Total / Total Cost / final price; values typed into the YOUSTA template reproduce those totals (tests use two real sheets).
+* Excel output follows the layout (sheet name, header wording, vendor/brand block, CM amount row, final-price row, `excel update` sheet); PDF and Comparison show the layout's own price chain.
+
+Still open: brand summary report (§4.4), the encrypted GETKRTSFUT6002/6098/6099 files (passwords needed), `2243 COSTING.xlsx` (not yet studied), MSME price cell of the YOUSTA upload sheet (left blank), `Total Qty` of the upload sheet (left blank until PO quantity exists in the engine).

@@ -43,6 +43,10 @@ export interface ComparisonResult {
   };
   clientPriceChain: {
     fobPrice: number;
+    /** false for layouts that have no finance / transport rows (final price = Total Cost) */
+    hasFinance: boolean;
+    hasTransport: boolean;
+    finalPriceLabel: string;
     financeCost: number;
     finalPoPrice: number;
     transport: number;
@@ -153,6 +157,9 @@ export function compareCostings(
     },
     clientPriceChain: {
       fobPrice: clientResult.fobPrice,
+      hasFinance: client.client.pricing?.finance ?? true,
+      hasTransport: client.client.pricing?.transport ?? true,
+      finalPriceLabel: client.client.pricing?.finalPriceLabel ?? "FINAL PO PRICE",
       financeCost: clientResult.financeCost,
       finalPoPrice: clientResult.finalPoPrice,
       transport: clientResult.transport,

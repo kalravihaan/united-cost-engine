@@ -18,11 +18,13 @@ export function createFromTemplate<T extends CostingDoc>(
     .map((l) => {
       const prov: CostLine["prov"] = {};
       const keep = mode === "VALUES";
+      // fixed percentages of a named customer layout travel with the structure (flagged TEMPLATE)
+      const keepRate = keep || l.prov.rate?.origin === "TEMPLATE";
       const mark = (f: keyof CostLine["prov"], has: boolean): Provenance | undefined => (keep && has ? { origin: "TEMPLATE", ref: { note: refNote }, at } : undefined);
       const c: CostLine = {
         ...l,
         quantity: keep ? l.quantity : null,
-        rate: keep ? l.rate : null,
+        rate: keepRate ? l.rate : null,
         amount: keep ? l.amount : l.amount === undefined ? undefined : null,
         description: keep ? l.description : "",
         prov,
@@ -35,8 +37,7 @@ export function createFromTemplate<T extends CostingDoc>(
       // GST rates and UOMs are part of the structure of a line, keep them (flagged as template)
       const q = mark("quantity", c.quantity !== null);
       if (q) prov.quantity = q;
-      const r = mark("rate", c.rate !== null);
-      if (r) prov.rate = r;
+      if (keepRate && c.rate !== null) prov.rate = { origin: "TEMPLATE", ref: { note: refNote }, at };
       if (c.gstRate !== null) prov.gstRate = { origin: "TEMPLATE", ref: { note: refNote }, at };
       if (c.uom) prov.uom = { origin: "TEMPLATE", ref: { note: refNote }, at };
       const a = mark("amount", c.amount !== null && c.amount !== undefined);
@@ -70,7 +71,7 @@ export function createFromTemplate<T extends CostingDoc>(
     ...base,
     client: {
       ...c.client,
-      headerNotes: [],
+      headerNotes: [...c.client.headerNotes],
       transport: mode === "VALUES" ? { ...c.client.transport } : { amount: 0 },
       finance: { ...c.client.finance },
     },

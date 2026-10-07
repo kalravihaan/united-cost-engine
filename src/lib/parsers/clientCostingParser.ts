@@ -60,13 +60,13 @@ type ClientField =
 /** header text (normalized) → field */
 const HEADER_MAP: Array<[RegExp, ClientField]> = [
   [/^product id$/, "productId"],
-  [/^design id$/, "designId"],
+  [/^design id/, "designId"],
   [/^cost item category$/, "category"],
   [/^cost item$/, "item"],
-  [/^description$/, "description"],
+  [/^(description|fabric quality description.*)$/, "description"],
   [/^item type$/, "itemType"],
   [/^quantity$/, "quantity"],
-  [/^quantity uom$/, "uom"],
+  [/^(quantity|qty) uom$/, "uom"],
   [/^hs code$/, "hsCode"],
   [/^duty ?%$/, "duty"],
   [/^price without gst$/, "rate"],
@@ -113,6 +113,10 @@ export interface ParsedClientSheet {
   images: SheetImage[];
   /** columns found, field → letter (for the import report) */
   columns: Record<string, string>;
+  /** header text of the sheet, by column letter (customer layouts keep their own wording) */
+  headerLabels: Record<string, string>;
+  /** the workbook also carries a one-row "excel update" sheet (CS price upload) that links to this sheet */
+  updateSheet?: boolean;
   /** UOM list the workbook offers in its Quantity UOM drop-down (data validation range), when present */
   uomOptions: string[];
 }
@@ -167,7 +171,7 @@ function findSummary(
       let key: string | null = null;
       if (n === "fob price") key = "fob";
       else if (n.startsWith("finance cost")) key = "finance";
-      else if (n === "final po price") key = "final";
+      else if (n === "final po price" || /^final po price non/.test(n)) key = "final";
       else if (n === "transport") key = "transport";
       else if (n.startsWith("final po price incl")) key = "finalIncl";
       if (!key) continue;
@@ -248,7 +252,7 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
     if (firstDataRow === null) firstDataRow = row;
     else if (productText) headerNotes.push(productText);
 
-    const item = collapse(text(get(row, "item") ?? { value: null, formula: null, address: "" }));
+    let item = collapse(text(get(row, "item") ?? { value: null, formula: null, address: "" }));
     const description = collapse(text(get(row, "description") ?? { value: null, formula: null, address: "" }));
     const qty = get(row, "quantity");
     const rate = get(row, "rate");
@@ -282,6 +286,10 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
       const refs = formulaRefs(baseCell.formula);
       const totalRef = totalRow ? `${baseColLetter}${totalRow}` : null;
       if (totalRef && refs.includes(totalRef)) calc = "PERCENT_OF_SUBTOTAL";
+    } else if (q === null && baseCell && num(baseCell) !== null) {
+      // a typed-in amount with no quantity (the single "CM" row of the YOUSTA layout)
+      calc = "ENTERED_AMOUNT";
+      if (!item) item = category;
     }
 
     const attributes: CostLine["attributes"] = {};
@@ -324,6 +332,7 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
       attributes,
       prov: {},
       sourceFormula,
+      ...(calc === "ENTERED_AMOUNT" && baseCell ? { amount: num(baseCell) } : {}),
       sourceRef: { file: fileName, sheet, cell: `${colLetters.item ?? "D"}${row}`, note: `row ${row}` },
     };
     if (q !== null && qty) line.prov.quantity = { origin: "IMPORT", ref: refCommon(qty, labels.quantity) };
@@ -355,10 +364,11 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
         ref: r(fileName, sheet, sum.finance.address),
       });
     }
-  } else {
-    issues.push({ level: "warning", code: "FINANCE_MISSING", message: `${sheet}: FINANCE COST row not found.` });
   }
-  if (!sum.transport) issues.push({ level: "warning", code: "TRANSPORT_MISSING", message: `${sheet}: Transport row not found.` });
+  // layouts with no finance / transport rows (final price = Total Cost) carry their own price chain
+  const pricing = !sum.finance && !sum.transport && sum.final ? { finalPriceLabel: sum.final.label, finance: false, transport: false } : undefined;
+  if (!sum.finance && !pricing) issues.push({ level: "warning", code: "FINANCE_MISSING", message: `${sheet}: FINANCE COST row not found.` });
+  if (!sum.transport && !pricing) issues.push({ level: "warning", code: "TRANSPORT_MISSING", message: `${sheet}: Transport row not found.` });
 
   // 4) overhead + margin table
   const overheadTiers: OverheadMarginTier[] = [];
@@ -400,6 +410,7 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
     issues,
     source: { file: fileName, sheet, importedAt },
     client: {
+      ...(pricing ? { pricing } : {}),
       headerNotes,
       category: null,
       sections,
@@ -430,7 +441,9 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
   };
   if (skippedBlank > 0) issues.push({ level: "info", code: "BLANK_SLOTS", message: `${sheet}: ${skippedBlank} empty template rows (no item, description or value) were not turned into cost lines.` });
 
-  return { doc, cached, overheadTiers, images: extractSheetImages(wb, ws), columns: colLetters, uomOptions: readUomOptions(ws, cols.uom) };
+  const headerLabels: Record<string, string> = {};
+  for (const [f, c] of Object.entries(cols)) if (labels[f as ClientField]) headerLabels[colLetter(c as number)] = labels[f as ClientField]!;
+  return { doc, cached, overheadTiers, images: extractSheetImages(wb, ws), columns: colLetters, headerLabels, uomOptions: readUomOptions(ws, cols.uom) };
 }
 
 export async function parseClientWorkbook(
@@ -445,6 +458,10 @@ export async function parseClientWorkbook(
   for (const ws of wb.worksheets) {
     if (ws.state !== "visible") continue;
     try {
+      if (!detectHeader(ws)) {
+        issues.push({ level: "info", code: "SHEET_SKIPPED", message: `Sheet "${ws.name}" has no client-costing header row and was skipped.`, ref: { file: fileName, sheet: ws.name } });
+        continue;
+      }
       const p = parseClientSheet(ws, wb, fileName, importedAt);
       issues.push(...p.doc.issues.filter((i) => i.level !== "info"));
       sheets.push(p);
@@ -452,5 +469,8 @@ export async function parseClientWorkbook(
       issues.push({ level: "error", code: "SHEET_UNPARSED", message: (e as Error).message, ref: { file: fileName, sheet: ws.name } });
     }
   }
+  // customers that upload prices keep a one-row "excel update" sheet next to the costing sheet
+  const hasUpdateSheet = wb.worksheets.some((w) => w.state === "visible" && Array.from({ length: 6 }, (_, k) => k + 1).some((row) => normalizeLabel(text(readCell(w, row, 1))) === "sl no" && Array.from({ length: 10 }, (_, c) => normalizeLabel(text(readCell(w, row, c + 1)))).some((t) => /cs price/.test(t))));
+  if (hasUpdateSheet) for (const s of sheets) s.updateSheet = true;
   return { fileName, sheets, issues };
 }

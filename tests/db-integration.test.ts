@@ -18,7 +18,7 @@ d("database: templates, versions, audit, CAD revisions", () => {
     process.env.DATABASE_URL = url;
     process.env.STORAGE_DIR = path.resolve(__dirname, "..", "storage-test");
     const { prisma } = await import("@/server/db");
-    await prisma.$executeRawUnsafe(`TRUNCATE "AuditEvent","CadExtraction","CostingVersion","Costing","StoredFile","StyleAlias","Style","Category","Uom","CostSection","CostItem","FabricMaster","RateMaster","CostingRule","CostTemplate" RESTART IDENTITY CASCADE`);
+    await prisma.$executeRawUnsafe(`TRUNCATE "AuditEvent","CadExtraction","CostingVersion","Costing","StoredFile","StyleAlias","Style","Category","Uom","CostSection","CostItem","FabricMaster","RateMaster","CostingRule","CostTemplate","Brand","Customer","ClientFormat" RESTART IDENTITY CASCADE`);
     const lib = await import("@/lib/calculations");
     m = {
       prisma,
@@ -102,5 +102,41 @@ d("database: templates, versions, audit, CAD revisions", () => {
     expect(ed.data.totalLength.value).toBe(152.54);
     expect(ed.data.totalLength.manual).toMatchObject({ value: 3.874 });
     await expect(m.cad.uploadCad({ styleId: style.id, bytes: Buffer.from("not a pdf"), fileName: "x.pdf", user: "t" })).rejects.toThrow(/PDF/);
+  });
+
+  it("client costing has one default template per customer layout; a style resolves its layout from brand, then customer", async () => {
+    // DEFAULT layout exists from the first test; learn the YOUSTA layout from its reference workbook
+    const y = await m.tpl.rebuildTemplateFromReference("CLIENT", ref("client_costing_YOUSTA.xlsx"), "client_costing_YOUSTA.xlsx", "t", { key: "YOUSTA", label: "YOUSTA" });
+    expect(y.format).toBe("YOUSTA");
+    const formats = await m.tpl.listClientFormats();
+    expect(formats.map((f: { key: string }) => f.key)).toEqual(["DEFAULT", "YOUSTA"]);
+    const def = await m.tpl.getTemplate("CLIENT");
+    const you = await m.tpl.getTemplate("CLIENT", "youSTA");
+    expect(def.doc.client.format.key).toBe("DEFAULT");
+    expect(you.doc.client.format.key).toBe("YOUSTA");
+    expect(you.doc.client.sections.map((s: { label: string }) => s.label)).toContain("Print/Emb/Washing");
+    expect(def.doc.client.sections.map((s: { label: string }) => s.label)).not.toContain("Print/Emb/Washing");
+    expect(await m.tpl.getTemplate("CLIENT", "NOPE")).toBeNull();
+
+    // editing one layout never touches the other
+    const edited = m.lib.addClientSection(you.doc, "Dyeing");
+    const saved = await m.tpl.saveTemplate("CLIENT", edited, "u", "YOUSTA");
+    expect(saved.version).toBe(you.version + 1);
+    expect(saved.doc.client.format.key).toBe("YOUSTA");
+    expect((await m.tpl.getTemplate("CLIENT")).version).toBe(def.version);
+    // the original template of the other mode is not affected by a format argument
+    expect((await m.tpl.getTemplate("ACTUAL", "YOUSTA")).format).toBe("DEFAULT");
+
+    const fy = await m.prisma.clientFormat.findUnique({ where: { key: "YOUSTA" } });
+    const fd = await m.prisma.clientFormat.findUnique({ where: { key: "DEFAULT" } });
+    const cust = await m.prisma.customer.create({ data: { name: "Yousta Retail", clientFormatId: fd.id } });
+    const brand = await m.prisma.brand.create({ data: { name: "YOUSTA", customerId: cust.id, clientFormatId: fy.id } });
+    const plain = await m.prisma.brand.create({ data: { name: "House", customerId: cust.id } });
+    const s1 = await m.prisma.style.create({ data: { number: "A1", customerId: cust.id, brandId: brand.id } });
+    const s2 = await m.prisma.style.create({ data: { number: "A2", customerId: cust.id, brandId: plain.id } });
+    const s3 = await m.prisma.style.create({ data: { number: "A3" } });
+    expect((await m.cost.getWorkspace(s1.id)).style.clientFormat).toBe("YOUSTA"); // brand wins
+    expect((await m.cost.getWorkspace(s2.id)).style.clientFormat).toBe("DEFAULT"); // falls back to the customer's layout
+    expect((await m.cost.getWorkspace(s3.id)).style.clientFormat).toBeNull(); // nothing assigned → default layout
   });
 });

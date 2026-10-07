@@ -588,6 +588,20 @@ function TotalRow({ label, hint, r, strong }: { label: string; hint: string; r: 
 function PriceChain({ doc, result, edit, readOnly }: { doc: ClientCosting; result: ClientResult; edit: Edit<ClientCosting>; readOnly?: boolean }) {
   const f = doc.client.finance;
   const by = getUserName();
+  const pricing = doc.client.pricing;
+  if (pricing && !pricing.finance && !pricing.transport) {
+    // layouts without finance / transport rows: the final price is the Total Cost
+    return (
+      <div className="border-t border-line bg-surface px-4 py-3">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">Price</div>
+        <div className="grid max-w-[640px] grid-cols-[1fr_120px_120px] items-center gap-x-3 text-[12.5px]">
+          <div className="text-[13px] font-bold uppercase tracking-[0.04em]">{pricing.finalPriceLabel}</div>
+          <div />
+          <div className="num text-right text-[15px] font-bold text-client">{rupee(result.finalPoPrice)}</div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="border-t border-line bg-surface px-4 py-3">
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">Price build-up</div>
@@ -632,6 +646,7 @@ function ClientRow({ line: l, res, setF, revert, setAttr, edit, issues, readOnly
   const [open, setOpen] = React.useState(false);
   const removed = !!l.removed;
   const isPct = l.calc === "PERCENT_OF_SUBTOTAL";
+  const isAmount = l.calc === "ENTERED_AMOUNT";
   const name = l.item || l.description || l.sectionLabel;
   const dis = readOnly || removed;
   return (
@@ -660,14 +675,18 @@ function ClientRow({ line: l, res, setF, revert, setAttr, edit, issues, readOnly
         <td className="px-1">
           {isPct ? (
             <Tip content="Quantity is not used: this line is a % of Total (source formula L = Total × price)."><span className="block px-1.5 text-right text-ink-3">—</span></Tip>
+          ) : isAmount ? (
+            <span className="block px-1.5 text-right text-[11px] text-ink-3">amount</span>
           ) : (
             <NumberCell value={l.quantity} onCommit={(v) => setF(l.id, "quantity", v)} disabled={dis || structure} ariaLabel={`${name} quantity`} />
           )}
         </td>
-        <td className="px-1">{isPct ? null : <TextCell value={l.uom} list="uom-list" onCommit={(v) => setF(l.id, "uom", v === "" ? null : v)} disabled={dis} placeholder="—" ariaLabel={`${name} UOM`} />}</td>
+        <td className="px-1">{isPct || isAmount ? null : <TextCell value={l.uom} list="uom-list" onCommit={(v) => setF(l.id, "uom", v === "" ? null : v)} disabled={dis} placeholder="—" ariaLabel={`${name} UOM`} />}</td>
         <td className="px-1">
           {isPct ? (
             <NumberCell value={l.rate} scale={100} suffix="%" onCommit={(v) => setF(l.id, "rate", v)} disabled={dis || structure} ariaLabel={`${name} percent of Total`} />
+          ) : isAmount ? (
+            <NumberCell value={l.amount ?? null} onCommit={(v) => setF(l.id, "amount", v)} disabled={dis || structure} ariaLabel={`${name} amount`} />
           ) : (
             <NumberCell value={l.rate} onCommit={(v) => setF(l.id, "rate", v)} disabled={dis || structure} ariaLabel={`${name} price without GST`} />
           )}
@@ -685,7 +704,11 @@ function ClientRow({ line: l, res, setF, revert, setAttr, edit, issues, readOnly
         </td>
         <td className="pr-2">
           <div className="flex items-center justify-end gap-0.5">
-            <ProvTag prov={l.prov.rate} value={l.rate} label={`${name} · Price without GST`} onRevert={() => revert(l.id, "rate")} />
+            {isAmount ? (
+              <ProvTag prov={l.prov.amount} value={l.amount ?? null} label={`${name} · Amount`} onRevert={() => revert(l.id, "amount")} />
+            ) : (
+              <ProvTag prov={l.prov.rate} value={l.rate} label={`${name} · Price without GST`} onRevert={() => revert(l.id, "rate")} />
+            )}
             {!readOnly &&
               (removed ? (
                 <Tip content="Restore line">

@@ -169,6 +169,26 @@ export function CostEnginePage() {
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-2/60 px-4 py-2">
                       <div className="flex items-center gap-2 text-[12px] text-ink-2">
                         <Badge tone={mode === "ACTUAL" ? "actual" : "client"}>{mode === "ACTUAL" ? "ACTUAL COSTING" : "CLIENT COSTING"}</Badge>
+                        {doc.type === "CLIENT" && doc.client.format && (
+                          !stored && wb.clientFormats.length > 1 ? (
+                            <label className="flex items-center gap-1 text-[11.5px] text-ink-3">
+                              Layout
+                              <select
+                                className="rounded border border-line bg-white px-1.5 py-0.5 text-[12px] font-medium text-ink"
+                                value={wb.clientFormat}
+                                aria-label="Client costing layout"
+                                onChange={(e) => {
+                                  if (wb.dirty.CLIENT > 1 && !window.confirm("Switching the layout starts this client costing again from that layout's rows. Entries made so far will be lost.")) return;
+                                  wb.setClientFormat(e.target.value);
+                                }}
+                              >
+                                {wb.clientFormats.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                              </select>
+                            </label>
+                          ) : (
+                            <Badge tone="neutral">{doc.client.format.label}</Badge>
+                          )
+                        )}
                         <span className="font-semibold text-ink">{doc.style.label || doc.style.number}</span>
                         {version ? (
                           <span>
@@ -244,7 +264,7 @@ function SummaryStrip({ wb, mode }: { wb: Workbench; mode: CostingType }) {
     <div className="sticky top-[60px] z-20">
       <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 rounded-lg border border-line bg-surface/95 p-3 shadow-[0_4px_16px_-8px_rgba(16,24,40,0.18)] backdrop-blur">
         <Stat label="Actual cost / pc" value={rupee(actualPc)} tone="actual" active={mode === "ACTUAL"} sub={!wb.ws ? "—" : a && touched("ACTUAL") ? `Total cost ${rupee(a.totalCost)} · profit ${rupee(a.perPcProfit)} / pc` : "Enter quantities and rates"} />
-        <Stat label="Client cost / pc" value={rupee(clientPc)} tone="client" active={mode === "CLIENT"} sub={!wb.ws ? "—" : c && touched("CLIENT") ? `Final PO incl. transport ${rupee(c.finalPoPriceInclTransport)}` : "Enter quantities and rates"} />
+        <Stat label="Client cost / pc" value={rupee(clientPc)} tone="client" active={mode === "CLIENT"} sub={!wb.ws ? "—" : c && touched("CLIENT") ? `${wb.drafts.CLIENT?.type === "CLIENT" && wb.drafts.CLIENT.client.pricing && !wb.drafts.CLIENT.client.pricing.transport ? wb.drafts.CLIENT.client.pricing.finalPriceLabel : "Final PO incl. transport"} ${rupee(c.finalPoPriceInclTransport)}` : "Enter quantities and rates"} />
         <Stat label="Difference / pc" value={diff === null ? "—" : rupee(diff, { sign: true })} sub={diff === null ? (wb.ws ? "Appears once both costings have values" : "—") : `Client premium ${premium === null ? "—" : premium.toFixed(2) + "%"}`} />
         <div className="flex min-w-[120px] flex-col items-end justify-center text-right">
           <div className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-3">Checks</div>

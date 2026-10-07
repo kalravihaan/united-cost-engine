@@ -40,7 +40,7 @@ export interface VersionPayload {
 }
 
 export interface Workspace {
-  style: { id: string; number: string; color: string | null; description: string | null; customerId: string | null; brandId: string | null; categoryId: string | null; customer: string | null; brand: string | null; category: string | null; aliases: string[] };
+  style: { id: string; number: string; color: string | null; description: string | null; customerId: string | null; brandId: string | null; categoryId: string | null; customer: string | null; brand: string | null; category: string | null; clientFormat: string | null; aliases: string[] };
   imageUrl: string | null;
   cadFileUrl: string | null;
   cadPreviewUrl: string | null;
@@ -126,11 +126,13 @@ export const api = {
   masterCreate: (name: string, b: Record<string, unknown>) => req<Record<string, unknown>>(`/api/masters/${name}`, { method: "POST", body: JSON.stringify(b) }),
   masterUpdate: (name: string, id: string, b: Record<string, unknown>) => req<Record<string, unknown>>(`/api/masters/${name}/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
   masterDelete: (name: string, id: string) => req<{ ok: true }>(`/api/masters/${name}/${id}`, { method: "DELETE" }),
-  template: (type: "ACTUAL" | "CLIENT") => req<{ type: string; version: number; doc: CostingDoc; source: string | null; updatedBy: string; updatedAt: string }>(`/api/cost-templates/${type}`),
-  saveTemplate: (type: "ACTUAL" | "CLIENT", doc: CostingDoc) => req<{ version: number }>(`/api/cost-templates/${type}`, { method: "PUT", body: JSON.stringify({ doc }) }),
-  rebuildTemplate: (type: "ACTUAL" | "CLIENT", file: File) => {
+  clientFormats: () => req<Array<{ key: string; label: string; version: number; lines: number; active: boolean }>>("/api/cost-templates"),
+  template: (type: "ACTUAL" | "CLIENT", format?: string) => req<{ type: string; format: string; version: number; doc: CostingDoc; source: string | null; updatedBy: string; updatedAt: string }>(`/api/cost-templates/${type}${format ? `?format=${encodeURIComponent(format)}` : ""}`),
+  saveTemplate: (type: "ACTUAL" | "CLIENT", doc: CostingDoc, format?: string) => req<{ version: number }>(`/api/cost-templates/${type}${format ? `?format=${encodeURIComponent(format)}` : ""}`, { method: "PUT", body: JSON.stringify({ doc }) }),
+  rebuildTemplate: (type: "ACTUAL" | "CLIENT", file: File, format?: { key: string; label?: string }) => {
     const f = new FormData();
     f.set("file", file);
-    return req<{ type: string; version: number; lines: number; sections: number }>(`/api/cost-templates/${type}/rebuild`, { method: "POST", body: f });
+    const q = format ? `?format=${encodeURIComponent(format.key)}${format.label ? `&label=${encodeURIComponent(format.label)}` : ""}` : "";
+    return req<{ type: string; format: string; version: number; lines: number; sections: number }>(`/api/cost-templates/${type}/rebuild${q}`, { method: "POST", body: f });
   },
 };

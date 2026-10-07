@@ -57,6 +57,13 @@ function explainClient(doc: ClientCosting, r: ClientResult): ChainStep[] {
     { label: "Total Cost", formula: "L41 = SUM(L37:L40)", value: r.totalCost.base, kind: "amount", emphasis: true },
     { label: "Input Cost (GST)", formula: "O41 = SUM(O2:O40)  each line O = L × N", value: r.totalCost.gst, kind: "amount" },
     { label: "Total Cost (With GST)", formula: "M41 = SUM(M37:M40)", value: r.totalCost.withGst, kind: "amount" },
+  );
+  if (doc.client.pricing && !doc.client.pricing.finance && !doc.client.pricing.transport) {
+    // layouts with no finance cost / transport rows: the final price is the Total Cost
+    steps.push({ label: doc.client.pricing.finalPriceLabel, formula: "= Total Cost (this layout has no finance cost or transport rows)", value: r.finalPoPrice, kind: "amount", emphasis: true });
+    return steps;
+  }
+  steps.push(
     { label: "FOB Price", formula: "L43 = L41", value: r.fobPrice, kind: "amount", emphasis: true },
     { label: "FINANCE COST", formula: `L44 = L43 × ${doc.client.finance.rate}`, value: r.financeCost, kind: "amount", note: doc.client.finance.referenceRate !== null ? `label says ${(doc.client.finance.referenceRate * 100).toFixed(0)}%` : undefined },
     { label: "FINAL PO PRICE", formula: "L45 = L43 − L44", value: r.finalPoPrice, kind: "amount", emphasis: true },

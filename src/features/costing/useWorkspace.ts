@@ -32,11 +32,23 @@ export function useWorkspace() {
   const [loadedVersion, setLoadedVersion] = React.useState<Record<CostingType, { id: string; versionNo: number; historic: boolean } | null>>({ ACTUAL: null, CLIENT: null });
   const [rules, setRules] = React.useState<RuleSet | null>(null);
   const [templates, setTemplates] = React.useState<{ ACTUAL: CostingDoc | null; CLIENT: CostingDoc | null } | null>(null);
+  /** client layouts that have a default template (DEFAULT + one per customer/brand format) */
+  const [clientFormats, setClientFormats] = React.useState<Array<{ key: string; label: string }>>([]);
+  const [clientTemplates, setClientTemplates] = React.useState<Record<string, CostingDoc>>({});
+  /** layout picked by the user for a style that has no client costing yet (null = the style's brand/customer layout) */
+  const [chosenFormat, setChosenFormat] = React.useState<string | null>(null);
   const requestId = React.useRef(0);
 
   React.useEffect(() => {
     api.rules().then(setRules).catch(() => setRules(null));
-    Promise.all([api.template("ACTUAL").catch(() => null), api.template("CLIENT").catch(() => null)]).then(([a, c]) => setTemplates({ ACTUAL: a?.doc ?? null, CLIENT: c?.doc ?? null }));
+    (async () => {
+      const [a, formats] = await Promise.all([api.template("ACTUAL").catch(() => null), api.clientFormats().catch(() => [] as Array<{ key: string; label: string }>)]);
+      const docs: Record<string, CostingDoc> = {};
+      await Promise.all(formats.map(async (f) => { const t = await api.template("CLIENT", f.key).catch(() => null); if (t) docs[f.key] = t.doc; }));
+      setClientFormats(formats.filter((f) => docs[f.key]));
+      setClientTemplates(docs);
+      setTemplates({ ACTUAL: a?.doc ?? null, CLIENT: docs.DEFAULT ?? Object.values(docs)[0] ?? null });
+    })();
   }, []);
 
   const hydrate = React.useCallback((w: Workspace, keepDrafts = false) => {
@@ -54,6 +66,7 @@ export function useWorkspace() {
   const loadStyle = React.useCallback(
     async (styleId: string) => {
       const my = ++requestId.current;
+      setChosenFormat(null);
       setLoading(true);
       setError(null);
       try {
@@ -141,18 +154,30 @@ export function useWorkspace() {
     [setDraft],
   );
 
+  const effectiveFormat = React.useMemo(() => {
+    const want = chosenFormat ?? ws?.style.clientFormat ?? "DEFAULT";
+    return clientTemplates[want] ? want : clientTemplates.DEFAULT ? "DEFAULT" : Object.keys(clientTemplates)[0] ?? "DEFAULT";
+  }, [chosenFormat, ws?.style.clientFormat, clientTemplates]);
+
   /**
    * A style without a costing in a mode starts from that mode's default template: ALL its headers and rows,
    * no values. It is an unsaved draft until the user saves it as version 1.
    */
   const freshDraft = React.useCallback(
     (type: CostingType): CostingDoc | null => {
-      const tpl = templates?.[type];
+      const tpl = type === "CLIENT" ? clientTemplates[effectiveFormat] ?? templates?.CLIENT : templates?.[type];
       if (!tpl || !ws) return null;
       return createFromTemplate(tpl, { number: ws.style.number, label: ws.style.number, color: ws.style.color ?? undefined }, "STRUCTURE");
     },
-    [templates, ws],
+    [templates, clientTemplates, effectiveFormat, ws],
   );
+
+  /** Switch the layout of a client costing that has not been saved yet (starts it again from that layout's rows). */
+  const setClientFormat = React.useCallback((key: string) => {
+    setChosenFormat(key);
+    setDrafts((d) => ({ ...d, CLIENT: null }));
+    setDirty((x) => ({ ...x, CLIENT: 0 }));
+  }, []);
 
   React.useEffect(() => {
     if (!ws || !templates) return;
@@ -225,7 +250,7 @@ export function useWorkspace() {
     [],
   );
 
-  return { ws, loading, error, drafts, dirty, loadedVersion, rules, templates, results, cad, comparison, loadStyle, refresh, clear, edit, discard, save, loadHistoric, validate, applyCad, applyCategory, setDraft, hydrate };
+  return { clientFormats, clientFormat: effectiveFormat, setClientFormat, ws, loading, error, drafts, dirty, loadedVersion, rules, templates, results, cad, comparison, loadStyle, refresh, clear, edit, discard, save, loadHistoric, validate, applyCad, applyCategory, setDraft, hydrate };
 }
 
 export type Workbench = ReturnType<typeof useWorkspace>;

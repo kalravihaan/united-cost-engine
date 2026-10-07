@@ -42,7 +42,7 @@ function payload(v: NonNullable<Awaited<ReturnType<typeof costingRepository.late
 export async function getWorkspace(styleId: string) {
   const style = await prisma.style.findUnique({
     where: { id: styleId },
-    include: { customer: true, brand: true, category: true, aliases: true },
+    include: { customer: { include: { clientFormat: true } }, brand: { include: { clientFormat: true } }, category: true, aliases: true },
   });
   if (!style) return null;
   const [actual, client, cad, image, cadFile] = await Promise.all([
@@ -65,6 +65,8 @@ export async function getWorkspace(styleId: string) {
       customer: style.customer?.name ?? null,
       brand: style.brand?.name ?? null,
       category: style.category?.name ?? null,
+      /** client-costing layout of the style's brand (else customer); null = the default layout */
+      clientFormat: (style.brand?.clientFormat ?? style.customer?.clientFormat)?.key ?? null,
       aliases: style.aliases.map((a) => a.alias),
     },
     imageUrl: image ? `/api/files/${image.id}` : null,

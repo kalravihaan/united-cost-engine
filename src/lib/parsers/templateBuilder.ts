@@ -1,4 +1,4 @@
-import type { ActualCosting, ClientCosting, CostLine } from "@/types/costing";
+import type { ActualCosting, ClientCosting, ClientFormat, CostLine } from "@/types/costing";
 import { collapse, slug } from "@/lib/normalization/labels";
 import { groupForLine } from "@/lib/calculations/grouping";
 import { DEFAULT_RULES } from "@/data/defaultRules";
@@ -80,19 +80,33 @@ export function buildActualTemplate(parsed: ParsedActualWorkbook, fileName = par
   };
 }
 
-export function buildClientTemplate(sheet: ParsedClientSheet, fileName = sheet.doc.source?.file ?? "client costing.xlsx"): ClientCosting {
+export const DEFAULT_CLIENT_FORMAT: ClientFormat = { key: "DEFAULT", label: "Standard layout (GET)" };
+
+/** Vendor / brand memo lines are part of a customer's layout; per-style measurement notes ("L - 44\"") are not. */
+const isLayoutNote = (n: string) => /^(brand|vendor)\b/i.test(n) || /^[A-Z0-9 .&/-]{6,}$/.test(n) && !/^(XXL|XL|L|M|S|BO?)\s*[-–]/i.test(n);
+
+/**
+ * `format` names the customer layout the reference sheet follows (default: the original GET layout). A non-default
+ * format also keeps the fixed percentages of its post-total rows (Garment Rejection, Overhead+Margin) as TEMPLATE defaults.
+ */
+export function buildClientTemplate(sheet: ParsedClientSheet, fileName = sheet.doc.source?.file ?? "client costing.xlsx", format: ClientFormat = DEFAULT_CLIENT_FORMAT): ClientCosting {
   const ref = `Reference: ${fileName}`;
   const src = sheet.doc;
-  const lines: CostLine[] = src.lines.map((l, i) => ({
+  // a named customer layout keeps the wording / sheet name / upload sheet of the customer's own workbook for its Excel output
+  if (format.key !== DEFAULT_CLIENT_FORMAT.key) format = { ...format, export: { sheetName: src.source?.sheet, headers: sheet.headerLabels, updateSheet: !!sheet.updateSheet } };
+  // stray unnamed value rows of a customer sheet (no item, no description) are not structure
+  const lines: CostLine[] = src.lines.filter((l) => l.item || l.description || l.calc !== "QTY_X_RATE").map((l, i) => ({
     ...blankLine({ sectionKey: l.sectionKey, sectionLabel: l.sectionLabel, item: l.item, calc: l.calc }, `${l.sectionKey}:${slug(l.item || l.description || String(i))}${i}`, ref),
     itemType: l.itemType,
     uom: l.uom,
     gstRate: l.gstRate,
     currency: l.currency,
     description: "",
-    // structural percentages (Garment Rejection / Overhead+Margin) are entered per style; category sets Overhead+Margin
-    rate: null,
+    // structural percentages (Garment Rejection / Overhead+Margin) are entered per style; category sets Overhead+Margin.
+    // A named customer layout has fixed percentages: kept as visible TEMPLATE defaults.
+    rate: format.key !== DEFAULT_CLIENT_FORMAT.key && l.calc === "PERCENT_OF_SUBTOTAL" ? l.rate : null,
     prov: {
+      ...(format.key !== DEFAULT_CLIENT_FORMAT.key && l.calc === "PERCENT_OF_SUBTOTAL" && l.rate !== null ? { rate: { origin: "TEMPLATE" as const, ref: { note: ref } } } : {}),
       ...(l.uom ? { uom: { origin: "TEMPLATE" as const, ref: { note: ref } } } : {}),
       ...(l.gstRate !== null ? { gstRate: { origin: "TEMPLATE" as const, ref: { note: ref } } } : {}),
     },
@@ -111,7 +125,10 @@ export function buildClientTemplate(sheet: ParsedClientSheet, fileName = sheet.d
     lines,
     issues: [],
     client: {
-      headerNotes: [],
+      format,
+      ...(src.client.pricing ? { pricing: src.client.pricing } : {}),
+      // the vendor / brand block belongs to a named customer layout; the original layout carries no vendor data
+      headerNotes: format.key !== DEFAULT_CLIENT_FORMAT.key ? src.client.headerNotes.filter(isLayoutNote) : [],
       category: null,
       sections: src.client.sections.map((s) => ({ key: s.key, label: s.label, phase: s.phase })),
       finance: { rate: 0, referenceRate: src.client.finance.referenceRate, note: "Applied factor is an input per style" },

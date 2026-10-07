@@ -197,6 +197,9 @@ tr.line.removed td:last-child { text-decoration: none; opacity: 1; }
         <div class="lbl">1 · Customer / Brand</div>
         <input class="field" id="customer" aria-label="Customer" placeholder="Customer (type any name)" autocomplete="off">
         <div class="hint">In the full app: a managed master list.</div>
+        <div class="lbl" style="margin-top:8px">Client costing layout</div>
+        <select class="field" id="layout" aria-label="Client costing layout"></select>
+        <div class="hint" id="layouthint">Each customer/brand has its own default rows.</div>
       </div>
       <div>
         <div class="lbl">2 · Style number</div>
@@ -254,11 +257,11 @@ const DATA = /*DATA*/null;
   function uid() { return Math.random().toString(36).slice(2, 8); }
 
   /* ───────── state ───────── */
-  var PER = ["no", "customer", "docs", "saved", "category", "cad", "cadFile", "cadPreview", "photo"];
+  var PER = ["no", "customer", "layout", "docs", "saved", "category", "cad", "cadFile", "cadPreview", "photo"];
   var S = { id: null, styles: {}, order: [], no: "", customer: "", mode: "CLIENT", tab: "costing", docs: {}, saved: { ACTUAL: [], CLIENT: [] }, category: "", cad: null, cadFile: "", cadPreview: null, photo: null, closed: {}, open: {}, showRemoved: false, adding: null, addingHeader: false, editCad: null, cmpOpen: {} };
   var DL = null, FONTS = null;
-  function fresh(type, no) { return E.createFromTemplate(T[type], { number: no || "—" }, "STRUCTURE"); }
-  function newRecord(no) { return { no: no, customer: "", docs: { ACTUAL: fresh("ACTUAL", no), CLIENT: fresh("CLIENT", no) }, saved: { ACTUAL: [], CLIENT: [] }, category: "", cad: null, cadFile: "", cadPreview: null, photo: null }; }
+  function fresh(type, no, layout) { var tpl = type === "CLIENT" ? (T.CLIENT_FORMATS[layout || S.layout || "DEFAULT"] || T.CLIENT) : T[type]; return E.createFromTemplate(tpl, { number: no || "—" }, "STRUCTURE"); }
+  function newRecord(no) { return { no: no, customer: "", layout: "DEFAULT", docs: { ACTUAL: fresh("ACTUAL", no), CLIENT: fresh("CLIENT", no, "DEFAULT") }, saved: { ACTUAL: [], CLIENT: [] }, category: "", cad: null, cadFile: "", cadPreview: null, photo: null }; }
   function stash() { if (!S.id) return; var r = {}; PER.forEach(function (k) { r[k] = S[k]; }); S.styles[S.id] = r; }
   function activate(id) { stash(); var r = S.styles[id]; PER.forEach(function (k) { S[k] = r[k]; }); S.id = id; S.closed = {}; S.open = {}; S.adding = null; S.addingHeader = false; S.editCad = null; S.tab = "costing"; }
   function addStyle(no) { var id = "s" + uid(); S.styles[id] = newRecord(no); S.order.push(id); activate(id); return id; }
@@ -266,7 +269,7 @@ const DATA = /*DATA*/null;
   function load() {
     try {
       var j = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (j && j.order && j.order.length && j.styles && j.styles[j.id]) { S.styles = j.styles; S.order = j.order; S.mode = j.mode || "CLIENT"; var id = j.id; S.id = null; activate(id); return; }
+      if (j && j.order && j.order.length && j.styles && j.styles[j.id]) { S.styles = j.styles; S.order = j.order; S.order.forEach(function (i) { if (!S.styles[i].layout) S.styles[i].layout = "DEFAULT"; }); S.mode = j.mode || "CLIENT"; var id = j.id; S.id = null; activate(id); return; }
     } catch (e) { /* storage unavailable */ }
     sampleStyle();
   }
@@ -302,7 +305,24 @@ const DATA = /*DATA*/null;
   $("uomlist").innerHTML = DATA.uoms.map(function (u) { return '<option value="' + esc(u) + '">'; }).join("");
   $("category").innerHTML = '<option value="">Select category</option>' + DATA.tiers.map(function (t) { return '<option value="' + esc(t.name) + '">' + esc(t.name) + " · OH+M " + Math.round(t.rate * 100) + "%</option>"; }).join("");
   $("style").addEventListener("input", function (e) { setStyleNo(e.target.value.trim().replace(/^#/, ""), true); renderSoft(); });
-  $("customer").addEventListener("input", function (e) { S.customer = e.target.value; renderSoft(); });
+  $("layout").innerHTML = DATA.formats.map(function (f) { return '<option value="' + esc(f.key) + '">' + esc(f.label) + "</option>"; }).join("");
+  function setLayout(key, quiet) {
+    if (key === S.layout || !T.CLIENT_FORMATS[key]) return;
+    var c = S.docs.CLIENT;
+    if (touched(c) && !quiet && !window.confirm("Switching the layout starts the client costing again from that layout's rows. Values entered so far will be lost.")) { $("layout").value = S.layout; return; }
+    S.layout = key; var nd = fresh("CLIENT", S.no, key);
+    var tier = DATA.tiers.filter(function (t) { return t.name === S.category; })[0], oh = nd.lines.filter(function (l) { return l.sectionKey === "overhead_margin" && !l.removed; })[0];
+    if (tier && oh && !nd.client.pricing) nd = E.setLineField(Object.assign({}, nd, { client: Object.assign({}, nd.client, { category: S.category }) }), oh.id, "rate", tier.rate, { by: "you" }, "MASTER", { note: "Category “" + tier.name + "”" });
+    S.docs.CLIENT = nd; S.mode = "CLIENT"; S.closed = {}; S.open = {}; toast("Layout: " + T.CLIENT_FORMATS[key].client.format.label, "Client costing restarted from that layout's rows."); render();
+  }
+  $("layout").addEventListener("change", function (e) { setLayout(e.target.value); });
+  $("customer").addEventListener("input", function (e) {
+    S.customer = e.target.value;
+    // a customer/brand that has its own layout selects it (while the client costing is still empty)
+    var hit = DATA.formats.filter(function (f) { return f.key !== "DEFAULT" && f.label.toLowerCase() === S.customer.trim().toLowerCase(); })[0];
+    if (hit && S.layout !== hit.key && !touched(S.docs.CLIENT)) setLayout(hit.key, true);
+    renderSoft();
+  });
   $("newstyle").onclick = function () { addStyle(""); render(); $("style").focus(); toast("New style", "Type its style number, upload its CAD, then enter the costing."); };
   $("stylechips").addEventListener("click", function (e) { var b = e.target.closest("[data-sid]"); if (b && b.dataset.sid !== S.id) { activate(b.dataset.sid); render(); } });
   $("category").addEventListener("change", function (e) {
@@ -412,7 +432,7 @@ const DATA = /*DATA*/null;
     var pa = tA ? A.costPerPc : null, pcl = tC ? C.totalCost.base : null, diff = pa != null && pcl != null ? pcl - pa : null, prem = diff != null && pa ? diff * 100 / pa : null;
     var iss = issuesOf(doc()), e = iss.filter(function (i) { return i.level === "error"; }).length, w = iss.filter(function (i) { return i.level === "warning"; }).length;
     return '<div class="stat a' + (S.mode === "ACTUAL" ? " on" : "") + '"><div class="k">Actual cost / pc</div><div class="v num">' + rs(pa) + '</div><div class="s">' + (tA ? "Total cost " + rs(A.totalCost) + " · profit " + rs(A.perPcProfit) + " / pc" : "Enter quantities and rates") + "</div></div>" +
-      '<div class="stat c' + (S.mode === "CLIENT" ? " on" : "") + '"><div class="k">Client cost / pc</div><div class="v num">' + rs(pcl) + '</div><div class="s">' + (tC ? "Final PO incl. transport " + rs(C.finalPoPriceInclTransport) : "Enter quantities and rates") + "</div></div>" +
+      '<div class="stat c' + (S.mode === "CLIENT" ? " on" : "") + '"><div class="k">Client cost / pc</div><div class="v num">' + rs(pcl) + '</div><div class="s">' + (tC ? ((S.docs.CLIENT.client.pricing && !S.docs.CLIENT.client.pricing.transport) ? S.docs.CLIENT.client.pricing.finalPriceLabel : "Final PO incl. transport") + " " + rs(C.finalPoPriceInclTransport) : "Enter quantities and rates") + "</div></div>" +
       '<div class="stat"><div class="k">Difference / pc</div><div class="v num">' + (diff == null ? "—" : rs(diff, true)) + '</div><div class="s">' + (diff == null ? "Appears once both costings have values" : "Client premium " + pc(prem)) + "</div></div>" +
       '<div style="text-align:right;align-self:center;padding:0 8px"><div class="lbl">Checks</div>' + (e || w ? (e ? '<span class="badge bad">' + e + (e === 1 ? " error" : " errors") + "</span> " : "") + (w ? '<span class="badge warn">' + w + (w === 1 ? " warning" : " warnings") + "</span>" : "") : '<span class="badge ok">ALL CLEAR</span>') + "</div>";
   }
@@ -440,12 +460,12 @@ const DATA = /*DATA*/null;
       h += secRow("c", sec.key, sec.label, lines.filter(function (l) { return !l.removed; }).length, 6, rem ? ["—", "—", "—"] : [m(t ? t.total : 0), m(t ? t.gst : 0), m(t ? t.withGst : 0)], rem, "", true).replace("</tr>", "<td></td><td></td></tr>");
       if (!open) return;
       lines.forEach(function (l) {
-        var pct = l.calc === "PERCENT_OF_SUBTOTAL", r = R.lineResults[l.id] || { base: 0, gst: 0, withGst: 0 }, name = l.item || l.description || l.sectionLabel, isOpen = S.open[l.id], rem2 = !!l.removed;
+        var pct = l.calc === "PERCENT_OF_SUBTOTAL", amt = l.calc === "ENTERED_AMOUNT", r = R.lineResults[l.id] || { base: 0, gst: 0, withGst: 0 }, name = l.item || l.description || l.sectionLabel, isOpen = S.open[l.id], rem2 = !!l.removed;
         h += '<tr class="line' + (rem2 ? " removed" : "") + '"><td class="name l"><button class="chev" type="button" data-row="' + esc(l.id) + '" aria-label="Show details" aria-expanded="' + !!isOpen + '">' + (isOpen ? "▾" : "▸") + "</button>" +
           (l.custom ? '<input class="cell l" style="width:170px" data-k="' + esc(l.id) + '|item" data-line="' + esc(l.id) + '" data-f="item" value="' + esc(l.item) + '">' : "<span style='font-weight:500'>" + esc(l.item || l.description || "(unnamed)") + "</span>") + (l.custom ? ' <span class="badge acc">NEW</span>' : "") + (l.description && !isOpen && !l.custom ? '<div class="d" style="padding-left:20px">' + esc(l.description) + "</div>" : "") + "</td>" +
-          '<td class="c" style="color:var(--ink-3);font-weight:600;font-size:11px">' + esc(l.itemType || "") + "</td><td>" + (pct ? '<span style="color:var(--ink-3);font-size:11.5px" title="Quantity is not used: % of Total">% of Total</span>' : numCell(l.id, "quantity", l.quantity, rem2, { label: name + " quantity" })) + "</td>" +
-          "<td>" + (pct ? "" : '<input class="cell l" list="uomlist" data-k="' + esc(l.id) + '|uom" data-line="' + esc(l.id) + '" data-f="uom" value="' + esc(l.uom || "") + '"' + (rem2 ? " disabled" : "") + ' aria-label="' + esc(name) + ' UOM">') + "</td>" +
-          "<td>" + (pct ? numCell(l.id, "rate", l.rate, rem2, { pct: 1, label: name + " percent of Total" }) : numCell(l.id, "rate", l.rate, rem2, { label: name + " price without GST" })) + "</td><td>" + numCell(l.id, "gstRate", l.gstRate, rem2, { pct: 1, label: name + " GST percent" }) + "</td>" +
+          '<td class="c" style="color:var(--ink-3);font-weight:600;font-size:11px">' + esc(l.itemType || "") + "</td><td>" + (pct ? '<span style="color:var(--ink-3);font-size:11.5px" title="Quantity is not used: % of Total">% of Total</span>' : amt ? '<span style="color:var(--ink-3);font-size:11.5px">amount</span>' : numCell(l.id, "quantity", l.quantity, rem2, { label: name + " quantity" })) + "</td>" +
+          "<td>" + (pct || amt ? "" : '<input class="cell l" list="uomlist" data-k="' + esc(l.id) + '|uom" data-line="' + esc(l.id) + '" data-f="uom" value="' + esc(l.uom || "") + '"' + (rem2 ? " disabled" : "") + ' aria-label="' + esc(name) + ' UOM">') + "</td>" +
+          "<td>" + (pct ? numCell(l.id, "rate", l.rate, rem2, { pct: 1, label: name + " percent of Total" }) : amt ? numCell(l.id, "amount", l.amount, rem2, { label: name + " amount" }) : numCell(l.id, "rate", l.rate, rem2, { label: name + " price without GST" })) + "</td><td>" + numCell(l.id, "gstRate", l.gstRate, rem2, { pct: 1, label: name + " GST percent" }) + "</td>" +
           "<td class='num' style='font-weight:500'>" + (rem2 ? "—" : m(r.base)) + "</td><td class='num' style='color:var(--ink-2)'>" + (rem2 ? "—" : m(r.gst)) + "</td><td class='num' style='color:var(--ink-2)'>" + (rem2 ? "—" : m(r.withGst)) + "</td>" +
           "<td class='c' style='white-space:nowrap'>" + tag(l.prov.quantity, "quantity", q(l.quantity) + " " + (l.uom || ""), l.id, "quantity") + tag(l.prov.rate, "price", q(l.rate), l.id, "rate") + tag(l.prov.gstRate, "GST", fp2(l.gstRate), l.id, "gstRate") + "</td>" +
           "<td>" + (rem2 ? '<button class="iconbtn ok" type="button" title="Restore row" data-restoreline="' + esc(l.id) + '">↺</button>' : '<button class="iconbtn" type="button" title="Remove this row from this costing" aria-label="Remove ' + esc(name) + '" data-rmline="' + esc(l.id) + '">🗑</button>') + "</td></tr>";
@@ -463,7 +483,8 @@ const DATA = /*DATA*/null;
     post.forEach(block);
     h += '<tr class="tot strong"><td class="l" colspan="6" style="padding-left:14px">TOTAL COST <span style="font-weight:400;font-size:11px;color:var(--ink-3)">Total + Testing + Garment Rejection + Overhead+Margin</span></td><td class="num">' + m(R.totalCost.base) + '</td><td class="num" style="font-weight:500">' + m(R.totalCost.gst) + '</td><td class="num">' + m(R.totalCost.withGst) + "</td><td></td><td></td></tr></tbody></table></div>";
     h += '<div style="padding:8px 14px;border-top:1px solid var(--line)">' + (S.addingHeader ? '<span class="inl"><input id="newheader" placeholder="New header (Cost Item category)"><button class="btn pri" type="button" data-addheaderok="1">Add header</button><button class="btn" type="button" data-addheadercancel="1">Cancel</button></span>' : '<button class="addrow" type="button" data-addheader="1">＋ Add header</button>') + "</div>";
-    var f = d.client.finance;
+    var f = d.client.finance, pr = d.client.pricing;
+    if (pr && !pr.finance && !pr.transport) return h + '<div class="pad" style="border-top:1px solid var(--line)"><div class="lbl">Price</div><div style="max-width:600px"><div class="kv"><b style="font-size:13px;text-transform:uppercase">' + esc(pr.finalPriceLabel) + '</b><b class="num" style="font-size:16px;color:var(--client)">' + rs(R.finalPoPrice) + "</b></div></div></div>";
     h += '<div class="pad" style="border-top:1px solid var(--line)"><div class="lbl">Price build-up</div><div style="max-width:600px"><div class="kv"><b>FOB Price</b><b class="num">' + rs(R.fobPrice) + "</b></div>" +
       '<div class="kv" style="align-items:center"><span>FINANCE COST <span class="badge warn"' + tip("The reference sheet label reads “FINANCE COST 3%” but its formula is =L43*0. The factor applied is an input here; nothing is applied silently.") + ">label " + Math.round((f.referenceRate || 0) * 100) + '%</span> rate <input class="cell" style="width:70px;display:inline-block" inputmode="decimal" data-k="fin" data-fin="1" value="' + raw(f.rate, 100) + '" aria-label="Finance cost rate percent"> %</span><span class="num">' + rs(R.financeCost) + "</span></div>" +
       '<div class="kv"><b>FINAL PO PRICE <span style="font-weight:400;color:var(--ink-3)">(FOB − finance cost)</span></b><b class="num">' + rs(R.finalPoPrice) + "</b></div>" +
@@ -520,7 +541,7 @@ const DATA = /*DATA*/null;
     h += '<tr class="tot strong"><td class="l" style="padding-left:12px">TOTAL</td><td class="num">' + m(T2.actualPerPc) + '</td><td class="num">' + m(T2.clientPerPc) + '</td><td class="num">' + m(T2.differencePerPc) + '</td><td class="num">' + pc(T2.premiumPct, 1) + '</td><td class="num">' + m(T2.actualTotal) + '</td><td class="num">' + m(T2.clientTotal) + '</td><td class="num">' + m(T2.differenceTotal) + "</td></tr></tbody></table></div>";
     var M = cmp.margin;
     h += '<div class="grid2"><div class="card pad"><div class="lbl">Margin / profit: two separate economics</div><div class="kv"><span>Actual · sale rate / pc</span><b class="num">' + rs(M.actualSaleRatePerPc) + '</b></div><div class="kv"><span>Actual · PER PC PROFIT</span><b class="num">' + rs(M.actualPerPcProfit) + '</b></div><div class="kv"><span>Actual · profit %</span><b class="num">' + pc(M.actualProfitPct) + '</b></div><div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span>Client · Overhead+Margin / pc</span><b class="num">' + rs(M.clientOverheadMarginPerPc) + '</b></div><div class="hint">Actual profit is realised sale minus actual cost. The client Overhead+Margin row is part of the quoted price. They are never netted.</div></div>' +
-      '<div class="card pad"><div class="lbl">Client price chain / pc</div><div class="kv"><span>Total Cost = FOB Price</span><b class="num">' + rs(cmp.clientPriceChain.fobPrice) + '</b></div><div class="kv"><span>Finance cost</span><span class="num">' + rs(cmp.clientPriceChain.financeCost) + '</span></div><div class="kv"><span>FINAL PO PRICE</span><b class="num">' + rs(cmp.clientPriceChain.finalPoPrice) + '</b></div><div class="kv"><span>Transport</span><span class="num">' + rs(cmp.clientPriceChain.transport) + '</span></div><div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><b>FINAL PO PRICE Incl Transport</b><b class="num">' + rs(cmp.clientPriceChain.finalPoPriceInclTransport) + "</b></div></div></div>";
+      '<div class="card pad"><div class="lbl">Client price chain / pc</div>' + (cmp.clientPriceChain.hasFinance || cmp.clientPriceChain.hasTransport ? '<div class="kv"><span>Total Cost = FOB Price</span><b class="num">' + rs(cmp.clientPriceChain.fobPrice) + '</b></div><div class="kv"><span>Finance cost</span><span class="num">' + rs(cmp.clientPriceChain.financeCost) + '</span></div><div class="kv"><span>FINAL PO PRICE</span><b class="num">' + rs(cmp.clientPriceChain.finalPoPrice) + '</b></div><div class="kv"><span>Transport</span><span class="num">' + rs(cmp.clientPriceChain.transport) + '</span></div><div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><b>FINAL PO PRICE Incl Transport</b><b class="num">' + rs(cmp.clientPriceChain.finalPoPriceInclTransport) + "</b></div>" : '<div class="kv"><span>Total Cost</span><b class="num">' + rs(cmp.clientPriceChain.fobPrice) + '</b></div><div class="kv" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><b>' + esc(cmp.clientPriceChain.finalPriceLabel) + '</b><b class="num">' + rs(cmp.clientPriceChain.finalPoPrice) + "</b></div>") + "</div></div>";
     h += '<ul class="hint" style="margin:0;padding-left:16px">' + cmp.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul></div>";
     return h;
   }
@@ -544,7 +565,7 @@ const DATA = /*DATA*/null;
   function render() { var f = snapshot(); renderMain(); restore(f); persist(); }
   function renderMain() {
     var si = $("style"); if (document.activeElement !== si) si.value = S.no;
-    var ci = $("customer"); if (document.activeElement !== ci) ci.value = S.customer;
+    var ci = $("customer"); if (document.activeElement !== ci) ci.value = S.customer; $("layout").value = S.layout || "DEFAULT"; $("layout").disabled = false;
     $("category").value = S.category || "";
     $("stylehint").textContent = S.no ? "" : "Type the style number (or upload its CAD).";
     $("stylechips").innerHTML = S.order.map(function (id) { var r = id === S.id ? S : S.styles[id]; return '<button type="button" class="chip" data-sid="' + id + '"' + (id === S.id ? ' style="background:var(--accent-soft);color:var(--accent);border-color:var(--accent)"' : "") + ">" + esc(r.no || "(new)") + "</button>"; }).join("");

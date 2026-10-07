@@ -37,27 +37,44 @@ enum FileKind {
 
 // ───────────── masters ─────────────
 
-model Customer {
-  id        String   @id @default(cuid())
-  code      String?  @unique
-  name      String   @unique
-  active    Boolean  @default(true)
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/// Client-costing layouts (each customer/brand can follow its own default rows and price chain).
+/// The rows themselves live in CostTemplate (costingType CLIENT, formatKey = key).
+model ClientFormat {
+  id        String     @id @default(cuid())
+  key       String     @unique
+  label     String
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  customers Customer[]
   brands    Brand[]
-  styles    Style[]
+}
+
+model Customer {
+  id             String        @id @default(cuid())
+  code           String?       @unique
+  name           String        @unique
+  active         Boolean       @default(true)
+  notes          String?
+  clientFormatId String?
+  clientFormat   ClientFormat? @relation(fields: [clientFormatId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  brands         Brand[]
+  styles         Style[]
 }
 
 model Brand {
-  id         String   @id @default(cuid())
-  customerId String
-  name       String
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  customer   Customer @relation(fields: [customerId], references: [id])
-  styles     Style[]
+  id             String        @id @default(cuid())
+  customerId     String
+  name           String
+  active         Boolean       @default(true)
+  clientFormatId String?
+  clientFormat   ClientFormat? @relation(fields: [clientFormatId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  customer       Customer      @relation(fields: [customerId], references: [id])
+  styles         Style[]
 
   @@unique([customerId, name])
 }
@@ -276,13 +293,17 @@ model CostingVersion {
 /// Built from the reference workbooks, then edited in Masters → Costing Templates.
 model CostTemplate {
   id          String      @id @default(cuid())
-  costingType CostingType @unique
+  costingType CostingType
+  /// layout key: DEFAULT, or a ClientFormat.key (client costing only)
+  formatKey   String      @default("DEFAULT")
   version     Int         @default(1)
   /// CostingDoc with the default sections/lines and no quantities or rates
   doc         Json
   source      String?
   updatedBy   String
   updatedAt   DateTime    @updatedAt
+
+  @@unique([costingType, formatKey])
 }
 
 model AuditEvent {
