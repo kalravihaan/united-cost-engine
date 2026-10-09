@@ -3,7 +3,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "./api";
-import { Download, FileSpreadsheet, FileText, Save, Undo2, History as HistoryIcon, Eye, EyeOff, Layers } from "lucide-react";
+import { Download, Gauge, FileSpreadsheet, FileText, Save, Undo2, History as HistoryIcon, Eye, EyeOff, Layers } from "lucide-react";
 import type { ActualCosting, ClientCosting, CostingDoc } from "@/types/costing";
 import { applyCadToCosting, diffCostings } from "@/lib/calculations";
 import { cn, dateTime, rupee } from "@/lib/format";
@@ -14,6 +14,7 @@ import { StylePanel } from "@/features/styles/StylePanel";
 import { CadPanel } from "@/features/cad/CadPanel";
 import { ComparisonPanel } from "@/features/comparison/ComparisonPanel";
 import { BenchmarksPanel } from "@/features/analysis/BenchmarksPanel";
+import { StandardRatesDialog } from "@/features/analysis/StandardRatesDialog";
 import { ActualTable, ClientTable } from "./CostingTable";
 import { AuditPanel, ChainPanel, ChecksPanel, VersionsPanel } from "./panels";
 import { WorkflowBar } from "./WorkflowBar";
@@ -30,6 +31,7 @@ export function CostEnginePage() {
   const [showRemoved, setShowRemoved] = React.useState(false);
   const [uoms, setUoms] = React.useState<string[]>([]);
   const [saveOpen, setSaveOpen] = React.useState(false);
+  const [ratesOpen, setRatesOpen] = React.useState(false);
   const [versionKey, setVersionKey] = React.useState(0);
   const loadedFromUrl = React.useRef(false);
 
@@ -205,6 +207,9 @@ export function CostEnginePage() {
                       <div className="flex items-center gap-1.5">
                         <Button size="sm" variant="ghost" onClick={() => setShowRemoved((s) => !s)}>{showRemoved ? <EyeOff size={13} /> : <Eye size={13} />} {showRemoved ? "Hide" : "Show"} removed</Button>
                         <Button size="sm" variant="outline" disabled={!isDirty && !version?.historic} onClick={() => wb.discard(mode)}><Undo2 size={13} /> {version?.historic ? "Back to latest" : version ? "Discard" : "Start over"}</Button>
+                        {mode === "ACTUAL" && (
+                          <Button size="sm" variant="outline" onClick={() => setRatesOpen(true)} title="Fill CMT, trims and embellishment rates from the Rate masters"><Gauge size={13} /> Standard rates</Button>
+                        )}
                         <ExportMenu onExport={exportDoc} />
                         <Button size="sm" variant="primary" disabled={!isDirty && !version?.historic} onClick={() => setSaveOpen(true)}><Save size={13} /> {version ? "Save version" : "Save as v1"}</Button>
                       </div>
@@ -255,6 +260,21 @@ export function CostEnginePage() {
           </Card>
         </div>
       </div>
+
+      {wb.ws && doc?.type === "ACTUAL" && (
+        <StandardRatesDialog
+          open={ratesOpen}
+          onOpenChange={setRatesOpen}
+          doc={doc}
+          styleNumber={wb.ws.style.number}
+          clientFormat={wb.clientFormat}
+          brand={wb.ws.style.brand}
+          onApply={(fn, count) => {
+            wb.edit<ActualCosting>("ACTUAL", fn);
+            toast.push({ kind: "ok", title: `${count} standard rate${count === 1 ? "" : "s"} applied`, body: "Marked Master on each line. Quantities are unchanged; Discard undoes this until you save." });
+          }}
+        />
+      )}
 
       <SaveDialog open={saveOpen} onOpenChange={setSaveOpen} changes={changes} historic={!!version?.historic} versionNo={stored?.versionNo} onSave={doSave} type={mode} />
     </div>
