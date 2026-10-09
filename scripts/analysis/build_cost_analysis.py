@@ -263,13 +263,73 @@ rec_total = pd.DataFrame([dict(sheet="TOTAL (sheets without the 3 suspect ones)"
     metres_not_received=ok_rec.metres_not_received.clip(lower=0).sum(), value_of_gap=ok_rec.value_of_gap.sum(), value_of_gap_per_pc=ok_rec.value_of_gap.sum() / ok_rec.dispatch_pcs.sum(),
     ordered_vs_received_pct=ok_rec.metres_not_received.clip(lower=0).sum() / ok_rec.metres_ordered_costed.sum() * 100)])
 rec = pd.concat([rec, rec_total], ignore_index=True)
-cad_rows = []
-for sty, cad_len, width in [("5008", 1.50, '54"'), ("5009", 1.25, '53"'), ("72145", 1.60, '51"'), ("72232", 0.77, '53"')]:
-    x = df[df.sheet.str.startswith(sty)]
-    cad_rows.append(dict(style=sty, cad_marker_width=width, cad_length_per_set_m=cad_len, costing_consumption_cell=", ".join(sorted({f"{v:g}" for v in x.consumption_cell.dropna()})) or "no costing sheet",
-        costing_vs_cad_pct=(", ".join(sorted({f"{(v / cad_len - 1) * 100:+.1f}%" for v in x.consumption_cell.dropna()})) or ""),
-        purchased_m_per_dispatched_pc=", ".join(f"{v:.2f}" for v in x.m_per_dispatched_pc.dropna()), used_per_cut_pc=", ".join(f"{v:.2f}" for v in x.used_per_cut.dropna())))
-CADT = pd.DataFrame(cad_rows)
+
+
+# ─────────── which styles have which files ───────────
+CADL = D.get("cad", [])
+ENC = D.get("encrypted", [])
+def digits(x):
+    d = re.findall(r"\d{4,5}", str(x))
+    return d[-1] if d else None
+act_styles = {re.match(r"\d+", a["sheet"]).group(0) for a in A}
+cli_map = {}
+for c in C:
+    st = digits(c["file"]) if c["file"].startswith("YAS") else digits(c["productId"]) or digits(c["file"])
+    cli_map.setdefault(st, []).append(c["file"])
+enc_styles = {digits(f) for f in ENC}
+cad_map = {}
+for c in CADL:
+    cad_map.setdefault(c["style"], []).append(c)
+sum_styles = {re.findall(r"(\d{4,5})(?:/\d+)?$", r["styleNo"])[0] for r in SUM}
+cov = []
+for st in sorted(act_styles | set(k for k in cli_map if k) | enc_styles | set(cad_map) | sum_styles, key=lambda x: (len(x), x)):
+    cov.append(dict(style=st, actual_costing=("yes" if st in act_styles else ""), client_costing_readable=", ".join(cli_map.get(st, [])), client_costing_password_protected=("yes" if st in enc_styles else ""),
+                    cad_markers=len(cad_map.get(st, [])) or "", in_yousta_summary=("yes" if st in sum_styles else "")))
+COV = pd.DataFrame(cov)
+COV["has_actual_and_client"] = np.where((COV.actual_costing == "yes") & ((COV.client_costing_readable != "") | (COV.client_costing_password_protected == "yes")), "YES", "")
+COV["client_file_state"] = np.where(COV.client_costing_password_protected == "yes", "password protected (cannot be read)", np.where(COV.client_costing_readable != "", "readable", ""))
+COV = COV.sort_values(["has_actual_and_client", "style"], ascending=[False, True], key=lambda s_: s_ if s_.name != "style" else s_.map(lambda v: (len(v), v))).reset_index(drop=True)
+
+# client vs actual for every style that has both a readable client file and an actual sheet
+def a_comp(x):
+    d = x.dispatch_pcs.sum()
+    return dict(a_fabric=x.g_Fabric.sum() / d, a_embellishment=x.g_Embellishment.sum() / d, a_trims=(x["g_Labels & Tags"].sum() + x.g_Packaging.sum() + x.g_Other.sum() + x.g_Trims.sum()) / d,
+                a_cmt=x.cmt_total.sum() / d, a_cost=x.total_cost.sum() / d, a_sale_rate=x.sale_value.sum() / d, a_colours=len(x), a_pcs=d)
+pairs = []
+for st in sorted(act_styles & {k for k in cli_map if k}, key=lambda v: (len(v), v)):
+    ax = df[df.sheet.str.match(rf"^{st}(\b| -)")]
+    cl = [c for c in C if (digits(c["file"]) == st if c["file"].startswith("YAS") else (digits(c["productId"]) or digits(c["file"])) == st)]
+    if ax.empty or not cl:
+        continue
+    c = cl[0]
+    sec = {x["key"]: x["total"] for x in c["sections"]}
+    pe = (sec.get("print", 0) or 0) + (sec.get("emb", 0) or 0) + (sec.get("print_emb_washing", 0) or 0)
+    trims_c = (sec.get("sewing_trims", 0) or 0) + (sec.get("label_and_tags", 0) or 0) + (sec.get("packing_trims", 0) or 0)
+    filled = (sec.get("fabric", 0) or 0) > 0
+    rej = next((l for l in c["lines"] if l["section"] == "garment_rejection"), {}).get("rate")
+    oh = next((l for l in c["lines"] if l["section"] == "overhead_margin"), {}).get("rate")
+    row = dict(style=st, client_file=c["file"], layout=c["layout"], client_fabric_filled="yes" if filled else "NO – fabric and embroidery left blank", client_fabric=sec.get("fabric"), client_print_emb=pe, client_trims=trims_c,
+               client_cm=sec.get("cm"), client_testing=sec.get("testing"), client_rejection_pct=rej, client_oh_margin_pct=oh, client_total_cost=c["totalCost"], client_final_price=c["finalPo"])
+    row.update(a_comp(ax))
+    row["fabric_diff"] = (row["client_fabric"] - row["a_fabric"]) if filled else None
+    row["emb_diff"] = (row["client_print_emb"] - row["a_embellishment"]) if filled else None
+    row["trims_diff"] = row["client_trims"] - row["a_trims"]
+    row["cm_diff"] = row["client_cm"] - row["a_cmt"]
+    row["price_vs_actual_cost"] = row["client_final_price"] - row["a_cost"] if filled else None
+    sm = next((r_ for r_ in SUM if digits(r_["styleNo"].split("/")[0]) == st), None)
+    row["po_cost_per_summary"] = sm["poCost"] if sm else None
+    pairs.append(row)
+PAIRS = pd.DataFrame(pairs)
+
+# every CAD marker next to the costing of its style
+cad_tab = []
+for st, ms in sorted(cad_map.items(), key=lambda kv: (len(kv[0]), kv[0])):
+    x = df[df.sheet.str.match(rf"^{st}(\b| -)")]
+    cells = sorted({f"{v:g}" for v in x.consumption_cell.dropna()})
+    for m_ in ms:
+        cad_tab.append(dict(style=st, marker_file=m_["file"], width_in=m_["widthIn"], sets=m_["sets"], marker_length_m=m_["lengthM"], length_per_set_m=m_["lengthPerSet"], pieces=m_["pieces"], efficiency_pct=m_["efficiency"],
+            costing_cell=", ".join(cells) or "no costing sheet", purchased_m_per_dispatched_pc=", ".join(f"{v:.2f}" for v in x.m_per_dispatched_pc.dropna()), used_per_cut_pc=", ".join(f"{v:.2f}" for v in x.used_per_cut.dropna())))
+CADT = pd.DataFrame(cad_tab)
 
 # issues
 issues = []
@@ -288,7 +348,10 @@ add("Missing", "5007", "'40X30s COTTON Greige' row has quantity 0 at rate 45", "
 add("Check", "value loss", f"₹{df.value_loss.sum():,.0f} across 9 sheets (largest: 5059 = ₹70,397, 10.2% of its cost; 3113 = 6.1%; 1851 = 4.1%)", "the sheets compute 'Total Value Loss' but never subtract it from PROFIT, so real profit is lower than shown")
 add("Check", "YAS26ZWEWYF72300 (client)", "CM price typed 85 in the price column, amount typed 75 in the total column (hard-coded)", "the total uses 75, the price column says 85")
 add("Format", "YOUSTA summary file", "colours differ from the actual sheets (e.g. 65424 Lilac vs WHITE, 71447 WHITE vs off white, 0557 GREEN vs aqua)", "colour is not a reliable key between files")
-add("Format", "GETKRTSFUT6002 ×2, 6098, 6099", "password protected", "not analysed")
+add("Missing", "GETKRTSFUT6002 ×2, 6098, 6099, 6100", "password protected client costings (6100 is the client costing of actual sheet 6100)", "style 6100 has an actual sheet, a CAD and a client costing, but the client file cannot be read: password needed")
+add("Check", "YAS client files 71429, 71447, 72145, 74643", "client costing exists but fabric and embroidery are blank (total ₹104–114 against a PO price of ₹336–370)", "only trims, labels, packing, CM ₹75, testing, 2% rejection and overhead are filled; the client fabric allowance cannot be compared")
+add("Format", "style 72232 CAD", "three markers: block 0.77 m (10 pieces), AADA 0.93 m (35 pieces), full width 1.52 m (45 = 10 + 35 pieces)", "the earlier single CAD (0.77 m) was only a part; consumption needs the right marker or the sum")
+add("Format", "style 6206 CAD vs costing", "three markers 1.10 + 0.78 + 1.35 = 3.23 m; the costing consumption is typed =1.1+0.8+1.35+0.05+0.17 = 3.47", "a style can need several markers whose lengths add up; the engine reads one CAD per style")
 add("Format", "style 5008", "appears as YETKRTSCUT5008 (actual) and GETKRTSCUT5008 (client)", "confirm whether YET and GET are the same brand")
 ISS = pd.DataFrame(issues)
 
@@ -343,7 +406,7 @@ sheets = [
     ("5 Consumption", cons_fam, {}),
     ("5b Consumption by fabric", cons_type, {}),
     ("5c Production reconciliation", rec, {}),
-    ("5d CAD vs costing", CADT, {}),
+    ("5d CAD markers vs costing", CADT, {}),
     ("6 Embellishment", emb, {}),
     ("6b Embellishment by brand", emb_fam, {}),
     ("7 CMT", cmt, {}),
@@ -355,6 +418,8 @@ sheets = [
     ("11 YOUSTA PO vs actual", S[["styleNo", "colour", "poQty", "dispatched", "poCost", "actualCost", "margin_per_pc", "margin_pct", "billed_value", "actual_cost_value", "sheet", "cost_per_pc", "actual_sheet_minus_summary", "sale_rate", "po_cost_minus_actual_sheet_rate"]], {}),
     ("12 Client sheets", CLu, {}),
     ("13 Client vs actual 5008", cmp, {}),
+    ("13b Client vs actual all pairs", PAIRS, {}),
+    ("13c Coverage by style", COV, {}),
     ("14 Colourways 5008-5009", colour, {}),
     ("15 Data issues", ISS, {}),
     ("16 Dataset (actual)", df.drop(columns=["moved"]), {}),

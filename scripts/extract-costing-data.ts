@@ -11,6 +11,8 @@ import { parseClientWorkbook } from "@/lib/parsers/clientCostingParser";
 import { calculateActualCost } from "@/lib/calculations/actual";
 import { calculateClientCost } from "@/lib/calculations/client";
 import { groupForLine } from "@/lib/calculations/grouping";
+import { extractPdfText } from "@/lib/cad/pdfText";
+import { parseCadText } from "@/lib/cad/cadParser";
 import { DEFAULT_RULES } from "@/data/defaultRules";
 
 const [dir, out] = process.argv.slice(2);
@@ -78,14 +80,32 @@ const read = (...p: string[]) => fs.readFileSync(path.join(dir, ...p));
       });
     }
   };
+  const encrypted: string[] = [];
   await addClient("client costing.xlsx", "GET", read("client costing.xlsx"));
   for (const f of fs.readdirSync(path.join(dir, "data")).filter((x) => x.endsWith(".xlsx"))) {
     const buf = read("data", f);
-    if (buf.subarray(0, 2).toString("latin1") !== "PK") continue; // encrypted files
+    if (buf.subarray(0, 2).toString("latin1") !== "PK") {
+      encrypted.push(f); // password-protected workbook: listed, not read
+      continue;
+    }
     await addClient(f, f.startsWith("GET") ? "GET" : f.startsWith("YAS") ? "YOUSTA" : "?", buf);
   }
   await addClient("2243 COSTING.xlsx", "YOUSTA", read("2243 COSTING.xlsx"));
   data.client = client;
+  data.encrypted = encrypted;
+
+  /* ───────── CAD markers (every PDF in the folder) ───────── */
+  const cad: unknown[] = [];
+  for (const where of ["", "data"]) {
+    for (const f of fs.readdirSync(path.join(dir, where)).filter((x) => x.toLowerCase().endsWith(".pdf")).sort()) {
+      const d = parseCadText(await extractPdfText(new Uint8Array(fs.readFileSync(path.join(dir, where, f)))));
+      cad.push({
+        file: f, style: d.styleNumber.value, sets: d.sets.value, lengthM: d.length.value, widthIn: d.width.value, efficiency: d.efficiency.value, lengthPerSet: d.lengthPerSet.value,
+        lengthPerSetVerify: d.lengthPerSet.requiresVerification, pieces: d.totalPieces.value, surfacePieces: d.surfacePiecesCount.value, date: d.date.value, pieceNames: d.pieceNames,
+      });
+    }
+  }
+  data.cad = cad;
 
   /* ───────── YOUSTA cost summary ───────── */
   const wb = new ExcelJS.Workbook();
@@ -99,5 +119,5 @@ const read = (...p: string[]) => fs.readFileSync(path.join(dir, ...p));
   });
   data.summary = summary;
   fs.writeFileSync(out, JSON.stringify(data));
-  console.log(`actual ${actual.length} · client ${client.length} · summary ${summary.length}`);
+  console.log(`actual ${actual.length} · client ${client.length} (+${encrypted.length} encrypted) · CAD ${cad.length} · summary ${summary.length}`);
 })();

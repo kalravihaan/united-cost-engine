@@ -90,3 +90,10 @@ same pattern (client files 5008, 5008B/C/D carry their own product IDs per colou
 is now learnt from both sheets, shows the MSME price (editable rate) in the app, the Excel/PDF output and the upload sheet's *MSME CS PRICE*, and no longer defaults Overhead+Margin to 12% (the category sets it).
 
 The cross-brand findings (standard cost, rates, consumption, margins, data issues) are in [COST_ANALYSIS.md](COST_ANALYSIS.md).
+
+## 8. `data_1.zip` (7 CAD markers, GETKRTSFUT6100)
+
+* **GETKRTSFUT6100.xlsx is password protected** like 6002 ×2, 6098 and 6099. It is the client costing of style 6100, which has an actual sheet and a CAD, so it would be the second complete pair after 5008 (see COST_ANALYSIS.md §5).
+* The CAD reader reads all seven markers correctly (style, sets, length, width, efficiency, length per set, pieces). Its flags are right: the print marker of 6206 has one piece per size, so its length per set (0.78) is not Length ÷ Sets.
+* **A style can have several markers**: 6206 (plain 1.10 + print 0.78 + final 1.35 m = 3.23 m; the costing consumption is typed as that sum plus 0.22) and 72232 (block 0.77, AADA 0.93, full width 1.52 m with 45 = 10 + 35 pieces).
+  The engine stores one CAD per style; several markers per style is the next gap.
