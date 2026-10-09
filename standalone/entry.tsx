@@ -7,6 +7,7 @@ import { CostEnginePage } from "@/features/costing/CostEnginePage";
 import { StylesPage } from "@/features/styles/StylesPage";
 import { TemplatesPage } from "@/features/templates/TemplatesPage";
 import { TemplateEditor } from "@/features/templates/TemplateEditor";
+import { AnalysisPage } from "@/features/analysis/AnalysisPage";
 import { MastersPage } from "@/features/masters/MastersPage";
 import { usePathname, useSearchParams } from "next/navigation";
 import { installServer } from "./runtime";
@@ -18,6 +19,7 @@ function Router() {
   const path = usePathname();
   const sp = useSearchParams();
   if (path === "/styles") return <StylesPage />;
+  if (path === "/analysis") return <AnalysisPage />;
   if (path === "/masters") return <MastersPage />;
   if (path === "/templates") return <TemplatesPage />;
   const t = path.match(/^\/templates\/(ACTUAL|CLIENT)$/i);

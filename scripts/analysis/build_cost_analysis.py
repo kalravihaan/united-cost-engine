@@ -444,4 +444,18 @@ summary = dict(
     yousta_total=dict(billed=float(S.billed_value.sum()), cost=float(S.actual_cost_value.sum()), margin_pct=float((S.billed_value.sum() - S.actual_cost_value.sum()) / S.billed_value.sum() * 100), median=float(S.margin_pct.median()), min=float(S.margin_pct.min()), max=float(S.margin_pct.max())),
 )
 json.dump(summary, open(out.replace(".xlsx", ".json"), "w"), indent=1, default=float)
+
+# every table (except README / raw dataset) as plain records – embedded in the app's Analysis page (see scripts/analysis/export_snapshot.mjs)
+def _clean(v):
+    if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))): return None
+    if isinstance(v, (np.integer,)): return int(v)
+    if isinstance(v, (np.floating,)): return None if np.isnan(v) else round(float(v), 4)
+    if isinstance(v, float): return round(v, 4)
+    return v
+tables = {}
+for name, frame, _ in sheets:
+    if name in ("README", "16 Dataset (actual)"): continue
+    tables[name] = dict(columns=[str(c) for c in frame.columns], rows=[[_clean(v) for v in r] for r in frame.itertuples(index=False, name=None)])
+tables["README"] = dict(columns=["note"], rows=[[_clean(v)] for v in readme.iloc[:, 0].tolist()])
+json.dump(dict(generated=str(pd.Timestamp.today().date()), tables=tables), open(out.replace(".xlsx", ".tables.json"), "w"), default=float)
 print("written", out, "| sheets:", len(wb.sheetnames))

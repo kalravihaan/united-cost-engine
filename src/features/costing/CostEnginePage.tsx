@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { StylePanel } from "@/features/styles/StylePanel";
 import { CadPanel } from "@/features/cad/CadPanel";
 import { ComparisonPanel } from "@/features/comparison/ComparisonPanel";
+import { BenchmarksPanel } from "@/features/analysis/BenchmarksPanel";
 import { ActualTable, ClientTable } from "./CostingTable";
 import { AuditPanel, ChainPanel, ChecksPanel, VersionsPanel } from "./panels";
 import { WorkflowBar } from "./WorkflowBar";
@@ -145,6 +146,7 @@ export function CostEnginePage() {
               <TabsList>
                 <TabsTrigger value="costing">Costing</TabsTrigger>
                 <TabsTrigger value="comparison">Comparison</TabsTrigger>
+                <TabsTrigger value="benchmarks">Benchmarks</TabsTrigger>
                 <TabsTrigger value="chain">Calculation</TabsTrigger>
                 <TabsTrigger value="checks" count={issues.filter((i) => i.level !== "info").length}>Checks</TabsTrigger>
                 <TabsTrigger value="versions">Versions</TabsTrigger>
@@ -219,6 +221,14 @@ export function CostEnginePage() {
               <TabsContent value="comparison" className="outline-none">
                 {wb.ws ? (
                   <ComparisonPanel cmp={wb.comparison} styleNumber={wb.ws.style.number} actualEmpty={(wb.results.ACTUAL?.totalCost ?? 0) === 0} clientEmpty={(wb.results.CLIENT?.totalCost.base ?? 0) === 0} />
+                ) : (
+                  <EmptyState title="Select a style" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="benchmarks" className="outline-none">
+                {wb.ws ? (
+                  <BenchmarksPanel styleNumber={wb.ws.style.number} brand={wb.ws.style.brand} clientFormat={wb.clientFormat} doc={(wb.drafts.ACTUAL as ActualCosting | undefined) ?? null} result={wb.results.ACTUAL ?? null} rules={wb.rules} />
                 ) : (
                   <EmptyState title="Select a style" />
                 )}

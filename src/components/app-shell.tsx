@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calculator, Database, LayoutTemplate, Layers, Settings2 } from "lucide-react";
+import { BarChart3, Calculator, Database, LayoutTemplate, Layers, Settings2 } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/overlay";
 import { ToastProvider } from "@/components/ui/toast";
 import { cn } from "@/lib/format";
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/", label: "Cost Engine", icon: Calculator },
   { href: "/styles", label: "Styles", icon: Layers },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
+  { href: "/analysis", label: "Analysis", icon: BarChart3 },
   { href: "/masters", label: "Masters", icon: Database },
 ];
 

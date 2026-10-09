@@ -128,3 +128,10 @@ CM typed 85 against an amount of 75 (72300), value loss never deducted from prof
 4. **Colourways** as a level below style, and **production fields** (fabric received / used, pieces cut / shipped, shortage, fent) instead of free-text notes.
 5. **MSME price** and **category tiers** for the YOUSTA layout (implemented with this analysis).
 6. **Several CAD markers per style**, combined by sum or chosen per fabric (6206, 72232), and a password for the protected client files (6100 pairs with an actual sheet).
+
+## Refreshing the analysis shown in the app
+
+The **Analysis** page and each style's **Benchmarks** tab read `src/data/analysisSnapshot.json`, written by `scripts/analysis/build_cost_analysis.py` next to `cost_analysis.xlsx` (`cost_analysis.tables.json`).
+To refresh after new reference workbooks: `npx tsx scripts/extract-costing-data.ts <dir> data.json`, `python3 scripts/analysis/build_cost_analysis.py data.json cost_analysis.xlsx`, copy `cost_analysis.tables.json` to `src/data/analysisSnapshot.json`, rebuild.
+The benchmark bands are the segment's min / median / max (cost per piece, CMT, landed fabric rate, consumption, sale tiers) or the median ±15 % (fabric per piece) / ±30 % (embellishment); segments with under 5 sheets are indicative only.
+CAD handling is unchanged: one CAD per style (several markers per style stays deferred).

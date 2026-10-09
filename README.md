@@ -72,7 +72,7 @@ It is a trial tool, not the multi-user system (no shared data, versions live in 
 ## Single-file version (no install, no server, no database)
 
 `npm run standalone:build` produces **`dist-standalone/cost-engine.html`** (about 6 MB): the *whole* Cost Engine in one file you can open by double-clicking it
-(Chrome / Edge / Firefox). It is the real application, not a demo: the same screens (Cost Engine, Styles, Templates, Masters), the same API handlers and
+(Chrome / Edge / Firefox). It is the real application, not a demo: the same screens (Cost Engine, Styles, Templates, Analysis, Masters), the same API handlers and
 services, the same calculation engine, CAD reader, versions, audit trail, comparison and Excel / PDF export. Only the infrastructure is swapped:
 
 | Full app | Single file |
@@ -95,6 +95,8 @@ default templates. Limits: one person at a time, no login, data is per browser/c
 5. **Costing mode** Actual ⇄ Client. Each opens with all its rows. Enter quantities, rates, GST, UOM (number cells accept sums such as `4065+1617` or `1.1+0.8+1.35`, as the sheets do); add components or headers; remove headers/rows
    this style does not need (restorable); *Apply CAD to costing* feeds consumption. *Save as v1* / *Save version*; *Export* PDF / Excel (live formulas).
 6. **Comparison** tab: Actual vs Client of the same style, group by group, updating as values are entered.
+7. **Benchmarks** tab: the Actual costing against the standards learnt from the 58 reference sheets (cost/pc, fabric, embellishment, CMT, landed fabric rate, consumption and purchase allowance, sale rate), each with the low / typical / high of its segment and a *within / below / above range* reading. Guidance only; it never changes the costing. Name the fabric (e.g. *cotton slub*) in the fabric row to get its rate compared.
+8. **Analysis** page (nav): the whole cost analysis – brands and segments, standard cost, fabric rates and consumption, embellishment / CMT / trims rate cards, margins, client vs actual, coverage, data issues, method – as tables with CSV download. It is a snapshot of `docs/COST_ANALYSIS.md` / `cost_analysis.xlsx` embedded in the app (`src/data/analysisSnapshot.json`).
 
 ## Architecture
 
@@ -163,6 +165,6 @@ Uploads go through a `FileStore` interface (local disk now, swap for S3/GCS).
 
 ## Tests
 
-`npm test` – 87 tests (and `npm run test:standalone` runs the 6 database tests against the single-file store): engine verification against all 63 actual reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
+`npm test` – 94 tests (and `npm run test:standalone` runs the 6 database tests against the single-file store): engine verification against all 63 actual reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
 GST, finance/transport/final PO, CAD extraction (supplied PDF + alternative layouts + no-text-layer), style matching, validation, overrides,
 CAD → costing mapping, comparison reconciliation, templates, version diffs, per-customer client layouts (YOUSTA template, values typed in reproduce two real customer sheets' totals, Excel output and *excel update* sheet), and (with `TEST_DATABASE_URL`) DB templates/layouts/versioning/audit/CAD revisions.
