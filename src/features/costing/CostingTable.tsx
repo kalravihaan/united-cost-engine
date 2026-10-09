@@ -598,6 +598,18 @@ function PriceChain({ doc, result, edit, readOnly }: { doc: ClientCosting; resul
           <div className="text-[13px] font-bold uppercase tracking-[0.04em]">{pricing.finalPriceLabel}</div>
           <div />
           <div className="num text-right text-[15px] font-bold text-client">{rupee(result.finalPoPrice)}</div>
+          {pricing.msme && result.msmePrice !== undefined && (
+            <>
+              <div className="flex items-center gap-1.5 pt-1.5 font-medium">{pricing.msme.financeLabel.trim()}</div>
+              <div className="pt-1.5">
+                <NumberCell value={pricing.msme.rate} scale={100} suffix="%" decimals={2} disabled={readOnly} ariaLabel="MSME finance cost rate" onCommit={(v) => edit((d) => ({ ...d, client: { ...d.client, pricing: d.client.pricing && d.client.pricing.msme ? { ...d.client.pricing, msme: { ...d.client.pricing.msme, rate: v ?? 0 } } : d.client.pricing } }))} />
+              </div>
+              <div className="num pt-1.5 text-right">{rupee(result.msmeFinanceCost ?? 0)}</div>
+              <div className="text-[13px] font-bold uppercase tracking-[0.04em]">{pricing.msme.priceLabel.trim()}</div>
+              <div />
+              <div className="num text-right text-[15px] font-bold text-client">{rupee(result.msmePrice)}</div>
+            </>
+          )}
         </div>
       </div>
     );

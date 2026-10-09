@@ -94,6 +94,7 @@ export function ComparisonPanel({ cmp, styleNumber, actualEmpty, clientEmpty }: 
               <>
                 <Line k="Total Cost" v={rupee(cmp.clientPriceChain.fobPrice)} />
                 <Line k={cmp.clientPriceChain.finalPriceLabel} v={rupee(cmp.clientPriceChain.finalPoPrice)} strong />
+                {cmp.clientPriceChain.msmePrice !== null && <Line k={cmp.clientPriceChain.msmePriceLabel ?? "MSME price"} v={rupee(cmp.clientPriceChain.msmePrice)} />}
               </>
             )}
           </dl>

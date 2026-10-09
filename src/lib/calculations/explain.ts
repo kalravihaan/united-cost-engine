@@ -61,6 +61,11 @@ function explainClient(doc: ClientCosting, r: ClientResult): ChainStep[] {
   if (doc.client.pricing && !doc.client.pricing.finance && !doc.client.pricing.transport) {
     // layouts with no finance cost / transport rows: the final price is the Total Cost
     steps.push({ label: doc.client.pricing.finalPriceLabel, formula: "= Total Cost (this layout has no finance cost or transport rows)", value: r.finalPoPrice, kind: "amount", emphasis: true });
+    const m = doc.client.pricing.msme;
+    if (m && r.msmePrice !== undefined) {
+      steps.push({ label: m.financeLabel.trim(), formula: `= ${doc.client.pricing.finalPriceLabel} × ${m.rate}`, value: r.msmeFinanceCost ?? 0, kind: "amount" });
+      steps.push({ label: m.priceLabel.trim(), formula: `= ${doc.client.pricing.finalPriceLabel} − finance cost`, value: r.msmePrice, kind: "amount", emphasis: true });
+    }
     return steps;
   }
   steps.push(

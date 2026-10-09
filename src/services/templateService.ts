@@ -67,8 +67,10 @@ export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", by
   } else {
     const p = await parseClientWorkbook(bytes, fileName);
     if (!p.sheets.length) throw new Error(`No usable worksheet found: ${p.issues.map((i) => i.message).join("; ")}`);
-    doc = buildClientTemplate(p.sheets[0], fileName, fmt);
-    categories = p.sheets[0].overheadTiers.map((t) => ({ name: t.category, rate: t.rate, qty: t.qty, source: `${fileName} → ${t.ref.sheet}!${t.ref.cell}` }));
+    const more = [];
+    for (const x of extras) more.push(...(await parseClientWorkbook(x.bytes, x.fileName)).sheets);
+    doc = buildClientTemplate(p.sheets[0], fileName, fmt, more);
+    categories = [p.sheets[0], ...more].flatMap((sh) => sh.overheadTiers.map((t) => ({ name: t.category.trim(), rate: t.rate, qty: t.qty, source: `${sh.doc.source?.file ?? fileName} → ${t.ref.sheet}!${t.ref.cell}` })));
     uoms = [...p.sheets[0].uomOptions, ...doc.lines.map((l) => l.uom).filter((u): u is string => !!u)];
   }
   const row = await templateRepository.save(type, doc, `reference: ${fileName}`, user, key);

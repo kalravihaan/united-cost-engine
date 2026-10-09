@@ -177,6 +177,8 @@ export interface ClientPricing {
   finance: boolean;
   /** false: the layout has no transport row */
   transport: boolean;
+  /** MSME vendors are paid the final price less a finance cost (YOUSTA: 3%): FINAL PO PRICE MSME VENDOR */
+  msme?: { rate: number; financeLabel: string; priceLabel: string };
 }
 
 export interface ClientParams {
@@ -286,6 +288,9 @@ export interface ClientResult {
   finalPoPrice: number;
   transport: number;
   finalPoPriceInclTransport: number;
+  /** layouts with an MSME price: finance cost (final price × rate) and the price paid to an MSME vendor */
+  msmeFinanceCost?: number;
+  msmePrice?: number;
 }
 
 export type CostingResult = ActualResult | ClientResult;

@@ -13,7 +13,7 @@ Only the **CAD PDF** (and the style image) are uploaded. The two reference workb
 * Each mode opens with **all of its default headers and rows**, empty. You enter values and remove the headers/rows a style does not need.
 * CAD consumption feeds the fabric lines; every number carries its source; every save is a new immutable version.
 
-> Study of the reference files and the field-by-field mapping: **[docs/DATA_MODEL.md](docs/DATA_MODEL.md)**
+> Study of the reference files and the field-by-field mapping: **[docs/DATA_MODEL.md](docs/DATA_MODEL.md)** · what the real files imply: **[docs/REAL_SCOPE.md](docs/REAL_SCOPE.md)** · analysis of all costing data (standard cost, rates, consumption, margins): **[docs/COST_ANALYSIS.md](docs/COST_ANALYSIS.md)**
 
 ## Try it locally (fastest path)
 
@@ -163,6 +163,6 @@ Uploads go through a `FileStore` interface (local disk now, swap for S3/GCS).
 
 ## Tests
 
-`npm test` – 83 tests (and `npm run test:standalone` runs the 6 database tests against the single-file store): engine verification against all 63 actual reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
+`npm test` – 87 tests (and `npm run test:standalone` runs the 6 database tests against the single-file store): engine verification against all 63 actual reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
 GST, finance/transport/final PO, CAD extraction (supplied PDF + alternative layouts + no-text-layer), style matching, validation, overrides,
 CAD → costing mapping, comparison reconciliation, templates, version diffs, per-customer client layouts (YOUSTA template, values typed in reproduce two real customer sheets' totals, Excel output and *excel update* sheet), and (with `TEST_DATABASE_URL`) DB templates/layouts/versioning/audit/CAD revisions.

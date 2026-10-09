@@ -126,12 +126,27 @@ const isLayoutNote = (n: string) => /^(brand|vendor)\b/i.test(n) || /^[A-Z0-9 .&
  * `format` names the customer layout the reference sheet follows (default: the original GET layout). A non-default
  * format also keeps the fixed percentages of its post-total rows (Garment Rejection, Overhead+Margin) as TEMPLATE defaults.
  */
-export function buildClientTemplate(sheet: ParsedClientSheet, fileName = sheet.doc.source?.file ?? "client costing.xlsx", format: ClientFormat = DEFAULT_CLIENT_FORMAT): ClientCosting {
+export function buildClientTemplate(sheet: ParsedClientSheet, fileName = sheet.doc.source?.file ?? "client costing.xlsx", format: ClientFormat = DEFAULT_CLIENT_FORMAT, extras: ParsedClientSheet[] = []): ClientCosting {
   const ref = `Reference: ${fileName}`;
-  const src = sheet.doc;
+  const base = sheet.doc;
+  // further sheets of the same layout add the rows / headers / price rows the first one lacks (e.g. a newer sheet with an MSME price)
+  const srcLines = [...base.lines];
+  const srcSections = [...base.client.sections];
+  const rowKey = (l: CostLine) => `${l.sectionKey}|${collapse(l.item).toLowerCase()}`;
+  for (const x of extras) {
+    for (const sec of x.doc.client.sections) if (!srcSections.some((y) => y.key === sec.key)) srcSections.push(sec);
+    for (const l of x.doc.lines) {
+      if (!l.item.trim() || srcLines.some((y) => rowKey(y) === rowKey(l))) continue;
+      const lastOfSection = srcLines.map((y, i) => (y.sectionKey === l.sectionKey ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
+      srcLines.splice(lastOfSection + 1 || srcLines.length, 0, l);
+    }
+  }
+  const tiers = [sheet, ...extras].some((x) => x.overheadTiers.length > 0);
+  const src = { ...base, lines: srcLines, client: { ...base.client, sections: srcSections, pricing: [base, ...extras.map((x) => x.doc)].reduce<ClientCosting["client"]["pricing"]>((acc, d) => (d.client.pricing ? { ...(acc ?? d.client.pricing), ...(d.client.pricing.msme ? { msme: d.client.pricing.msme } : {}) } : acc), undefined) } };
   // a named customer layout keeps the wording / sheet name / upload sheet of the customer's own workbook for its Excel output
   if (format.key !== DEFAULT_CLIENT_FORMAT.key) format = { ...format, export: { sheetName: src.source?.sheet, headers: sheet.headerLabels, updateSheet: !!sheet.updateSheet } };
   // stray unnamed value rows of a customer sheet (no item, no description) are not structure
+  const keepFixed = (l: CostLine) => format.key !== DEFAULT_CLIENT_FORMAT.key && l.calc === "PERCENT_OF_SUBTOTAL" && !(tiers && l.sectionKey === "overhead_margin");
   const lines: CostLine[] = src.lines.filter((l) => l.item || l.description || l.calc !== "QTY_X_RATE").map((l, i) => ({
     ...blankLine({ sectionKey: l.sectionKey, sectionLabel: l.sectionLabel, item: l.item, calc: l.calc }, `${l.sectionKey}:${slug(l.item || l.description || String(i))}${i}`, ref),
     itemType: l.itemType,
@@ -141,9 +156,10 @@ export function buildClientTemplate(sheet: ParsedClientSheet, fileName = sheet.d
     description: "",
     // structural percentages (Garment Rejection / Overhead+Margin) are entered per style; category sets Overhead+Margin.
     // A named customer layout has fixed percentages: kept as visible TEMPLATE defaults.
-    rate: format.key !== DEFAULT_CLIENT_FORMAT.key && l.calc === "PERCENT_OF_SUBTOTAL" ? l.rate : null,
+    // (the Overhead+Margin rate is set by the style's category when the layout has a category table)
+    rate: keepFixed(l) ? l.rate : null,
     prov: {
-      ...(format.key !== DEFAULT_CLIENT_FORMAT.key && l.calc === "PERCENT_OF_SUBTOTAL" && l.rate !== null ? { rate: { origin: "TEMPLATE" as const, ref: { note: ref } } } : {}),
+      ...(keepFixed(l) && l.rate !== null ? { rate: { origin: "TEMPLATE" as const, ref: { note: ref } } } : {}),
       ...(l.uom ? { uom: { origin: "TEMPLATE" as const, ref: { note: ref } } } : {}),
       ...(l.gstRate !== null ? { gstRate: { origin: "TEMPLATE" as const, ref: { note: ref } } } : {}),
     },

@@ -10,7 +10,8 @@ import { renderPdfPreview } from "@/lib/cad/preview";
   const c = buildClientTemplate(cs);
   // one client layout per customer/brand format (DEFAULT = original GET layout)
   const ys = (await parseClientWorkbook(fs.readFileSync("data/reference/client_costing_YOUSTA.xlsx"), "client_costing_YOUSTA.xlsx")).sheets[0];
-  const y = buildClientTemplate(ys, "client_costing_YOUSTA.xlsx", { key: "YOUSTA", label: "YOUSTA" });
+  const y2 = (await parseClientWorkbook(fs.readFileSync("data/reference/client_costing_YOUSTA_2243.xlsx"), "client_costing_YOUSTA_2243.xlsx")).sheets;
+  const y = buildClientTemplate(ys, "client_costing_YOUSTA.xlsx", { key: "YOUSTA", label: "YOUSTA" }, y2);
   const formats = [{ key: DEFAULT_CLIENT_FORMAT.key, label: DEFAULT_CLIENT_FORMAT.label }, { key: "YOUSTA", label: "YOUSTA" }];
   const cad = await parseCadPdf(fs.readFileSync("tests/fixtures/cad_72232.pdf"));
   const prev = await renderPdfPreview(fs.readFileSync("tests/fixtures/cad_72232.pdf"), 1500);

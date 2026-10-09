@@ -23,6 +23,7 @@ const yas = async (file: string): Promise<ParsedClientSheet> => {
 const structural = (s: ParsedClientSheet) => s.doc.lines.filter((l) => l.item || l.description || l.calc !== "QTY_X_RATE");
 const YOUSTA_REF = sourcePath("client_costing_YOUSTA.xlsx");
 const YAS_72300 = path.resolve(__dirname, "fixtures", "yas_72300.xlsx");
+const YOUSTA_2243 = sourcePath("client_costing_YOUSTA_2243.xlsx");
 const YOUSTA = { key: "YOUSTA", label: "YOUSTA" };
 
 describe("YOUSTA layout: reading the customer's own sheet", () => {
@@ -68,7 +69,7 @@ describe("YOUSTA layout: reading the customer's own sheet", () => {
 });
 
 describe("YOUSTA default template", () => {
-  it("has every YOUSTA header and row, no values, keeps GST/UOM and the fixed 2% / 12% as flagged template defaults", async () => {
+  it("has every YOUSTA header and row, no values, keeps GST/UOM and the fixed 2% rejection as a flagged template default (Overhead+Margin comes from the category)", async () => {
     const t = buildClientTemplate(await yas(YOUSTA_REF), "client_costing_YOUSTA.xlsx", YOUSTA);
     expect(t.client.format).toMatchObject({ key: "YOUSTA", label: "YOUSTA", export: { sheetName: "revised format", updateSheet: true } });
     expect(t.client.sections).toHaveLength(9);
@@ -80,8 +81,8 @@ describe("YOUSTA default template", () => {
     expect(items("cm")).toEqual(["CM"]);
     expect(t.lines.find((l) => l.sectionKey === "cm")!.calc).toBe("ENTERED_AMOUNT");
     expect(t.lines.every((l) => l.quantity === null && (l.amount ?? null) === null)).toBe(true);
-    // nothing but the fixed percentages carries a rate
-    expect(t.lines.filter((l) => l.rate !== null).map((l) => [l.item, l.rate, l.prov.rate?.origin])).toEqual([["Garment Rejection", 0.02, "TEMPLATE"], ["Overhead+Margin", 0.12, "TEMPLATE"]]);
+    // nothing but the fixed rejection percentage carries a rate; the sheet has a category table (8 / 10 / 12%) that sets Overhead+Margin
+    expect(t.lines.filter((l) => l.rate !== null).map((l) => [l.item, l.rate, l.prov.rate?.origin])).toEqual([["Garment Rejection", 0.02, "TEMPLATE"]]);
     expect(t.lines.find((l) => l.item === "Sewing Thread")!.gstRate).toBe(0.12);
     expect(t.client.headerNotes).toEqual(expect.arrayContaining(["BRAND - YOUSTA", "Vendor Code - 32026735"]));
     expect(JSON.stringify(t)).not.toMatch(/YAS26|92% Cotton/);
@@ -94,7 +95,8 @@ describe("YOUSTA default template", () => {
     expect(d.client.format?.key).toBe("YOUSTA");
     expect(d.client.pricing?.finance).toBe(false);
     expect(d.client.headerNotes).toEqual(t.client.headerNotes);
-    expect(d.lines.find((l) => l.item === "Overhead+Margin")).toMatchObject({ rate: 0.12, prov: { rate: { origin: "TEMPLATE" } } });
+    expect(d.lines.find((l) => l.item === "Garment Rejection")).toMatchObject({ rate: 0.02, prov: { rate: { origin: "TEMPLATE" } } });
+    expect(d.lines.find((l) => l.item === "Overhead+Margin")!.rate).toBeNull();
     expect(calculateClientCost(d).totalCost.base).toBe(0);
   });
 
@@ -128,6 +130,67 @@ describe("YOUSTA default template", () => {
     expect(labels).toContain("FINAL PO PRICE NON-MSME VENDOR");
     expect(labels).not.toContain("FINANCE COST");
     expect(labels).not.toContain("Transport");
+  });
+});
+
+describe("YOUSTA newer sheet (2243): category tiers and the MSME price", () => {
+  it("reads the Overhead+Margin category table (Core and table products 8%, Fashion 10%, Fast Fashion 12%)", async () => {
+    const s = await yas(YOUSTA_REF);
+    expect(s.overheadTiers.map((t) => [t.category.trim(), t.rate])).toEqual([["Core and table products", 0.08], ["Fashion", 0.1], ["Fast Fashion", 0.12]]);
+    // the newer sheet lists the three category names without rates (it quotes 10% = Fashion)
+    expect((await yas(YOUSTA_2243)).overheadTiers).toEqual([]);
+  });
+
+  it("2243: final price NON-MSME = Total Cost; MSME price = final price less 3% finance cost; Total / Total Cost equal the sheet", async () => {
+    const s = await yas(YOUSTA_2243);
+    expect(s.doc.client.pricing).toMatchObject({ finance: false, transport: false, finalPriceLabel: "FINAL PO PRICE NON-MSME VENDOR", msme: { rate: 0.03 } });
+    expect(s.doc.client.pricing?.msme?.priceLabel.trim()).toBe("FINAL PO PRICE MSME VENDOR");
+    const r = calculateClientCost(s.doc);
+    expect(close(r.total.base, s.cached.total)).toBe(true);
+    expect(r.totalCost.base).toBeCloseTo(302.1768, 9);
+    expect(r.finalPoPrice).toBeCloseTo(302.1768, 9);
+    expect(r.msmeFinanceCost).toBeCloseTo(9.065304, 9);
+    expect(r.msmePrice).toBeCloseTo(293.111496, 9);
+    expect(s.doc.client.format).toBeUndefined();
+    // here the CM row is quantity 1 × price 65 (the YAS sheets type the amount straight into the total column)
+    expect(s.doc.lines.find((l) => l.sectionKey === "cm")).toMatchObject({ calc: "QTY_X_RATE", quantity: 1, rate: 65 });
+    expect(s.doc.client.sections.find((x) => x.key === "overhead_margin")).toBeTruthy();
+  });
+
+  it("the YOUSTA template learnt from both sheets has the MSME price and the rows only the newer sheet has", async () => {
+    const t = buildClientTemplate(await yas(YOUSTA_REF), "client_costing_YOUSTA.xlsx", YOUSTA, [await yas(YOUSTA_2243)]);
+    expect(t.client.pricing?.msme).toMatchObject({ rate: 0.03 });
+    const items = t.lines.map((l) => l.item.trim().toLowerCase());
+    for (const x of ["handwork", "smoking", "toggles", "elastic loop", "stap adj", "btn"]) expect(items, x).toContain(x);
+    expect(items.filter((x) => x === "main label")).toHaveLength(1); // rows both sheets have are not duplicated
+    expect(t.lines.find((l) => l.item === "Overhead+Margin")!.rate).toBeNull();
+    const d = createFromTemplate(t, { number: "2243" }, "STRUCTURE");
+    expect(d.client.pricing?.msme?.rate).toBe(0.03);
+    expect(calculateClientCost(d).msmePrice).toBe(0);
+  });
+
+  it("Excel output writes the MSME finance cost and price rows and links the upload sheet's MSME price", async () => {
+    const s = await yas(YOUSTA_REF);
+    const t = buildClientTemplate(s, "client_costing_YOUSTA.xlsx", YOUSTA, [await yas(YOUSTA_2243)]);
+    let d = createFromTemplate(t, { number: "72232" }, "STRUCTURE") as ClientCosting;
+    const cm = d.lines.find((l) => l.sectionKey === "cm")!;
+    d = setLineField(d, cm.id, "amount", 100, { by: "t" });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(await exportExcel({ doc: d, style: { number: "72232" }, user: "t", rules: DEFAULT_RULES, at: new Date("2026-01-01T00:00:00Z") })) as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet("revised format")!;
+    let fin = 0, msme = 0, final = 0;
+    ws.eachRow((row, n) => {
+      const lab = String(row.getCell(9).value ?? "").trim();
+      if (lab === "FINAL PO PRICE NON-MSME VENDOR") final = n;
+      if (/^FINANCE COST 3%/.test(lab)) fin = n;
+      if (lab === "FINAL PO PRICE MSME VENDOR") msme = n;
+    });
+    expect(final && fin && msme).toBeTruthy();
+    expect((ws.getCell(`L${msme}`).value as unknown as { formula: string; result: number }).formula).toBe(`L${final}-L${fin}`);
+    const r = calculateClientCost(d);
+    expect((ws.getCell(`L${msme}`).value as unknown as { result: number }).result).toBeCloseTo(r.msmePrice!, 9);
+    const up = wb.getWorksheet("excel update")!;
+    expect((up.getCell("F4").value as unknown as { formula: string }).formula).toBe(`'revised format'!L${msme}`);
   });
 });
 

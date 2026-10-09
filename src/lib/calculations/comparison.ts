@@ -47,6 +47,9 @@ export interface ComparisonResult {
     hasFinance: boolean;
     hasTransport: boolean;
     finalPriceLabel: string;
+    /** MSME vendor price of layouts that have one */
+    msmePrice: number | null;
+    msmePriceLabel: string | null;
     financeCost: number;
     finalPoPrice: number;
     transport: number;
@@ -160,6 +163,8 @@ export function compareCostings(
       hasFinance: client.client.pricing?.finance ?? true,
       hasTransport: client.client.pricing?.transport ?? true,
       finalPriceLabel: client.client.pricing?.finalPriceLabel ?? "FINAL PO PRICE",
+      msmePrice: clientResult.msmePrice ?? null,
+      msmePriceLabel: client.client.pricing?.msme?.priceLabel.trim() ?? null,
       financeCost: clientResult.financeCost,
       finalPoPrice: clientResult.finalPoPrice,
       transport: clientResult.transport,

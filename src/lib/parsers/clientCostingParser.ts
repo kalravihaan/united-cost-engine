@@ -1,5 +1,6 @@
 import type {
   ClientCosting,
+  ClientPricing,
   ClientSectionDef,
   CostLine,
   ImportIssue,
@@ -170,7 +171,9 @@ function findSummary(
       const n = normalizeLabel(label);
       let key: string | null = null;
       if (n === "fob price") key = "fob";
+      else if (n.startsWith("finance cost") && /msme/.test(n)) key = "msmeFinance";
       else if (n.startsWith("finance cost")) key = "finance";
+      else if (/^final po price msme/.test(n)) key = "msmePrice";
       else if (n === "final po price" || /^final po price non/.test(n)) key = "final";
       else if (n === "transport") key = "transport";
       else if (n.startsWith("final po price incl")) key = "finalIncl";
@@ -366,7 +369,15 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
     }
   }
   // layouts with no finance / transport rows (final price = Total Cost) carry their own price chain
-  const pricing = !sum.finance && !sum.transport && sum.final ? { finalPriceLabel: sum.final.label, finance: false, transport: false } : undefined;
+  let pricing: ClientPricing | undefined = !sum.finance && !sum.transport && sum.final ? { finalPriceLabel: sum.final.label, finance: false, transport: false } : undefined;
+  if (pricing && sum.msmeFinance && sum.msmePrice) {
+    // MSME vendors: FINANCE COST 3% ( MSME ) = final price × 3%; FINAL PO PRICE MSME VENDOR = final price − finance cost
+    const f = sum.msmeFinance.formula;
+    const fm = f?.match(/\*\s*(\d+(?:\.\d+)?)\s*$/) ?? f?.match(/^\s*(\d+(?:\.\d+)?)\s*\*/);
+    const lab = sum.msmeFinance.label.match(/(\d+(?:\.\d+)?)\s*%/);
+    const rate = fm ? Number(fm[1]) : lab ? Number(lab[1]) / 100 : 0;
+    pricing = { ...pricing, msme: { rate, financeLabel: sum.msmeFinance.label, priceLabel: sum.msmePrice.label } };
+  }
   if (!sum.finance && !pricing) issues.push({ level: "warning", code: "FINANCE_MISSING", message: `${sheet}: FINANCE COST row not found.` });
   if (!sum.transport && !pricing) issues.push({ level: "warning", code: "TRANSPORT_MISSING", message: `${sheet}: Transport row not found.` });
 
@@ -384,6 +395,16 @@ export function parseClientSheet(ws: Sheet, wb: import("exceljs").Workbook, file
       }
       break;
     }
+  }
+  if (!overheadTiers.length) {
+    // layout where the table is "category | rate" without a heading (YOUSTA: Core and table products 8%, Fashion 10%, Fast Fashion 12%)
+    for (let row = (totalCostRow ?? headerRow) + 1; row <= lastRow; row++) {
+      const cat = collapse(text(readCell(ws, row, 1)));
+      const rate = num(readCell(ws, row, 2));
+      if (cat && rate !== null && rate > 0 && rate <= 0.5 && !/^(brand|vendor|l-|b0)/i.test(cat)) overheadTiers.push({ rate, category: cat, qty: null, ref: r(fileName, sheet, `B${row}`, "Overhead + margin") });
+      else if (overheadTiers.length) break;
+    }
+    if (overheadTiers.length < 2) overheadTiers.length = 0;
   }
 
   // 5) identity

@@ -20,7 +20,7 @@ async function main() {
   const jobs = [
     { type: "ACTUAL", file: "actual_costing.xlsx", format: null, extra: ["actual_costing_2.xlsx"] },
     { type: "CLIENT", file: "client_costing.xlsx", format: null, extra: [] },
-    { type: "CLIENT", file: "client_costing_YOUSTA.xlsx", format: { key: "YOUSTA", label: "YOUSTA" }, extra: [] },
+    { type: "CLIENT", file: "client_costing_YOUSTA.xlsx", format: { key: "YOUSTA", label: "YOUSTA" }, extra: ["client_costing_YOUSTA_2243.xlsx"] },
   ] as const;
   for (const { type, file, format, extra } of jobs) {
     const key = format?.key ?? "DEFAULT";

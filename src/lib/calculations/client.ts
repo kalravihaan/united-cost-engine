@@ -95,6 +95,9 @@ export function calculateClientCost(doc: ClientCosting): ClientResult {
     }
   }
 
+  const msme = doc.client.pricing?.msme;
+  const msmeFinanceCost = msme ? finalPoPrice * msme.rate : undefined;
+
   return {
     type: "CLIENT",
     lineResults,
@@ -106,5 +109,6 @@ export function calculateClientCost(doc: ClientCosting): ClientResult {
     finalPoPrice,
     transport,
     finalPoPriceInclTransport: calculateTransport(finalPoPrice, transport),
+    ...(msme ? { msmeFinanceCost, msmePrice: finalPoPrice - (msmeFinanceCost ?? 0) } : {}),
   };
 }

@@ -50,7 +50,9 @@ Implemented (see README → *Client layouts per customer / brand*):
 * The YOUSTA sheets parse and reproduce their own Total / Total Cost / final price; values typed into the YOUSTA template reproduce those totals (tests use two real sheets).
 * Excel output follows the layout (sheet name, header wording, vendor/brand block, CM amount row, final-price row, `excel update` sheet); PDF and Comparison show the layout's own price chain.
 
-Still open: brand summary report (§4.4), the encrypted GETKRTSFUT6002/6098/6099 files (passwords needed), `2243 COSTING.xlsx` (not yet studied), MSME price cell of the YOUSTA upload sheet (left blank), `Total Qty` of the upload sheet (left blank until PO quantity exists in the engine).
+Since then (see §7): `2243 COSTING.xlsx` studied; the YOUSTA layout now has the **MSME price** (final price less 3% finance cost) and its **category table** (Core and table products 8% / Fashion 10% / Fast Fashion 12%) sets Overhead+Margin.
+
+Still open: brand summary report (§4.4), the encrypted GETKRTSFUT6002/6098/6099 files (passwords needed), `Total Qty` of the YOUSTA upload sheet (left blank until PO quantity exists in the engine), colourways, production fields.
 
 ## 6. Second actual workbook (`livesmart_cost_closer.xlsx`, 35 sheets) – findings
 
@@ -80,3 +82,11 @@ per-piece profit of all 35 sheets equal to the workbook's own values. No new sec
 **Open (needs a decision): colourways.** The workbook holds one actual costing **per colour** of a style (5008 × 6 colours, 5009 × 2), each with its own order / dispatch
 quantity, fabric received and cost per piece (197.80 – 220.02). The engine keeps one costing per style and mode, so these cannot all be stored yet. The client side shows the
 same pattern (client files 5008, 5008B/C/D carry their own product IDs per colour).
+
+## 7. `2243 COSTING.xlsx` and the cost analysis
+
+`2243` is a YOUSTA client costing in a newer layout than the YAS sheets: same columns and rows plus extra sewing rows (handwork, smocking, toggles, elastic loop, adjustable strap, BTN) and, below the final price,
+**FINANCE COST 3% ( MSME )** and **FINAL PO PRICE MSME VENDOR** (= non-MSME price − 3%; ₹302.18 → ₹293.11). The YAS sheets have the same category table (8 / 10 / 12%) under the sheet; the YOUSTA template
+is now learnt from both sheets, shows the MSME price (editable rate) in the app, the Excel/PDF output and the upload sheet's *MSME CS PRICE*, and no longer defaults Overhead+Margin to 12% (the category sets it).
+
+The cross-brand findings (standard cost, rates, consumption, margins, data issues) are in [COST_ANALYSIS.md](COST_ANALYSIS.md).

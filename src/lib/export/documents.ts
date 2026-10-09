@@ -106,7 +106,7 @@ function summarySheet(wb: ExcelJS.Workbook, i: ExportInput) {
     result.type === "ACTUAL"
       ? [["Total Cost", rupee(result.totalCost)], ["Cost per pc", rupee(result.costPerPc)], ["Per pc profit", rupee(result.perPcProfit)], ["Total value loss", rupee(result.totalValueLoss)]]
       : i.doc.type === "CLIENT" && i.doc.client.pricing && !i.doc.client.pricing.finance && !i.doc.client.pricing.transport
-        ? [["Total Cost", rupee(result.fobPrice)], [i.doc.client.pricing.finalPriceLabel, rupee(result.finalPoPrice)]]
+        ? [["Total Cost", rupee(result.fobPrice)], [i.doc.client.pricing.finalPriceLabel, rupee(result.finalPoPrice)], ...(i.doc.client.pricing.msme && result.msmePrice !== undefined ? [[i.doc.client.pricing.msme.priceLabel.trim(), rupee(result.msmePrice)] as [string, string]] : [])]
         : [["Total Cost (FOB Price)", rupee(result.fobPrice)], ["FINAL PO PRICE", rupee(result.finalPoPrice)], ["Transport", rupee(result.transport)], ["FINAL PO PRICE Incl Transport", rupee(result.finalPoPriceInclTransport)]];
   key.forEach(([k, v], idx) => {
     ws.getCell(kr + idx, 4).value = k.toUpperCase();
@@ -253,8 +253,14 @@ function clientSheet(wb: ExcelJS.Workbook, doc: ClientCosting, res: ClientResult
   const pricing = doc.client.pricing;
   if (pricing && !pricing.finance && !pricing.transport) {
     // layouts without finance / transport rows: the final price is the Total Cost
-    put(pricing.finalPriceLabel, `L${costR}`, res.finalPoPrice, true);
-    return finishClientSheet(wb, ws, doc, res, { rowOf, sheetName, finalRow: r - 1 });
+    const finalRow = put(pricing.finalPriceLabel, `L${costR}`, res.finalPoPrice, true);
+    let msmeRow: number | undefined;
+    if (pricing.msme && res.msmePrice !== undefined) {
+      // MSME vendors: finance cost = final price × rate; FINAL PO PRICE MSME VENDOR = final price − finance cost
+      const fin = put(pricing.msme.financeLabel.trim(), `L${finalRow}*${pricing.msme.rate}`, res.msmeFinanceCost ?? 0);
+      msmeRow = put(pricing.msme.priceLabel.trim(), `L${finalRow}-L${fin}`, res.msmePrice, true);
+    }
+    return finishClientSheet(wb, ws, doc, res, { rowOf, sheetName, finalRow, msmeRow });
   }
   const fob = put("FOB Price", `L${costR}`, res.fobPrice, true);
   const finLabel = doc.client.finance.referenceRate !== null ? `FINANCE COST ${(doc.client.finance.referenceRate * 100).toFixed(0)}% (factor applied: ${doc.client.finance.rate})` : "FINANCE COST";
@@ -268,7 +274,7 @@ function clientSheet(wb: ExcelJS.Workbook, doc: ClientCosting, res: ClientResult
 const UPDATE_HEADERS = ["sl no", "Brand Name", "Style No", "Total Qty", "NON MSME CS price", "MSME CS PRICE", "Margin%", "Rejection%", "CM", "Fabric  Quality Description -Count/Construction/ GSM OR GLM/Content/Finishes/Fabric name and type /CW/GAUGE", "Main Fabric Price", "Main Fabric Qty- yy", "Trim Fabric 1", "Trim Fabric 1  Price", "Trim Fabric 1 Qty- yy", "Trim Fabric 2", "Trim Fabric 2 Price", "Trim Fabric 2 Qty- yy", "Trim Fabric 3", "Trim Fabric 3  Price", "Trim Fabric 3 Qty- yy", "MSME", "PM Name", "Vendor", "Vendor Code", "Date of CS rcvd", "Validation remarks", "Validation Date"];
 
 /** Product notes (customer layouts write them down column A under the Product ID) and the optional customer "excel update" sheet. */
-function finishClientSheet(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, doc: ClientCosting, res: ClientResult, ctx: { rowOf: Record<string, number>; sheetName: string; finalRow: number }) {
+function finishClientSheet(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, doc: ClientCosting, res: ClientResult, ctx: { rowOf: Record<string, number>; sheetName: string; finalRow: number; msmeRow?: number }) {
   const notes = doc.client.headerNotes.filter((n) => n.trim());
   const named = !!doc.client.format && doc.client.format.key !== "DEFAULT";
   if (named) {
@@ -312,6 +318,7 @@ function finishClientSheet(wb: ExcelJS.Workbook, ws: ExcelJS.Worksheet, doc: Cli
   put(2, null, noteVal(/^brand\s*-\s*(.+)$/i) ?? doc.client.format?.label ?? null);
   put(3, `'${ctx.sheetName}'!A2`, doc.style.productId ?? doc.style.label);
   put(5, `'${ctx.sheetName}'!L${ctx.finalRow}`, res.finalPoPrice, NUM);
+  if (ctx.msmeRow && res.msmePrice !== undefined) put(6, `'${ctx.sheetName}'!L${ctx.msmeRow}`, res.msmePrice, NUM);
   const oh = bySection("overhead_margin");
   const rej = bySection("garment_rejection");
   const cm = bySection("cm");
@@ -716,7 +723,7 @@ function pdfClient(doc: PDFKit.PDFDocument, d: ClientCosting, res: ClientResult,
   for (const s of sections.filter((x) => phaseOf(x.key) === "POST_TOTAL")) block(s);
   row(["TOTAL COST", "", "", "", "", money(res.totalCost.base), money(res.totalCost.gst), money(res.totalCost.withGst)], { bold: true, fill: "#dfe8f5" });
   const single = !!d.client.pricing && !d.client.pricing.finance && !d.client.pricing.transport;
-  c.ensure(single ? 34 : 90); // a layout without finance/transport only needs its one final-price line
+  c.ensure(single ? (d.client.pricing?.msme ? 66 : 34) : 90); // a layout without finance/transport only needs its one final-price line
   let y = c.getY() + 10;
   const kv = (k: string, v: string, bold = false) => {
     doc.fillColor(INK).font(bold ? "B" : "R").fontSize(bold ? 10 : 9).text(k, c.left + c.W - 330, y, { width: 220 });
@@ -725,6 +732,10 @@ function pdfClient(doc: PDFKit.PDFDocument, d: ClientCosting, res: ClientResult,
   };
   if (d.client.pricing && !d.client.pricing.finance && !d.client.pricing.transport) {
     kv(d.client.pricing.finalPriceLabel, rupee(res.finalPoPrice), true);
+    if (d.client.pricing.msme && res.msmePrice !== undefined) {
+      kv(d.client.pricing.msme.financeLabel.trim(), rupee(res.msmeFinanceCost ?? 0));
+      kv(d.client.pricing.msme.priceLabel.trim(), rupee(res.msmePrice), true);
+    }
     c.setY(y);
     return;
   }
