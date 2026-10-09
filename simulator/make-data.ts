@@ -5,7 +5,7 @@ import { buildActualTemplate, buildClientTemplate, DEFAULT_CLIENT_FORMAT } from 
 import { parseCadPdf } from "@/lib/cad/cadParser";
 import { renderPdfPreview } from "@/lib/cad/preview";
 (async () => {
-  const a = buildActualTemplate(await parseActualWorkbook(fs.readFileSync("data/reference/actual_costing.xlsx"), "actual_costing.xlsx"));
+  const a = buildActualTemplate([await parseActualWorkbook(fs.readFileSync("data/reference/actual_costing.xlsx"), "actual_costing.xlsx"), await parseActualWorkbook(fs.readFileSync("data/reference/actual_costing_2.xlsx"), "actual_costing_2.xlsx")]);
   const cs = (await parseClientWorkbook(fs.readFileSync("data/reference/client_costing.xlsx"), "client_costing.xlsx")).sheets[0];
   const c = buildClientTemplate(cs);
   // one client layout per customer/brand format (DEFAULT = original GET layout)

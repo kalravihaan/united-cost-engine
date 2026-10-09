@@ -18,18 +18,18 @@ async function main() {
   console.log("rules:", await seedDefaultRules());
   // one actual template, and one client template per customer layout (DEFAULT = the original GET layout)
   const jobs = [
-    { type: "ACTUAL", file: "actual_costing.xlsx", format: null },
-    { type: "CLIENT", file: "client_costing.xlsx", format: null },
-    { type: "CLIENT", file: "client_costing_YOUSTA.xlsx", format: { key: "YOUSTA", label: "YOUSTA" } },
+    { type: "ACTUAL", file: "actual_costing.xlsx", format: null, extra: ["actual_costing_2.xlsx"] },
+    { type: "CLIENT", file: "client_costing.xlsx", format: null, extra: [] },
+    { type: "CLIENT", file: "client_costing_YOUSTA.xlsx", format: { key: "YOUSTA", label: "YOUSTA" }, extra: [] },
   ] as const;
-  for (const { type, file, format } of jobs) {
+  for (const { type, file, format, extra } of jobs) {
     const key = format?.key ?? "DEFAULT";
     const existing = await prisma.costTemplate.findUnique({ where: { costingType_formatKey: { costingType: type, formatKey: key } } });
     if (existing) {
       console.log(`${type} ${key} template already exists (v${existing.version}); left untouched`);
       continue;
     }
-    const r = await rebuildTemplateFromReference(type, fs.readFileSync(path.join(dir, file)), file, user, format);
+    const r = await rebuildTemplateFromReference(type, fs.readFileSync(path.join(dir, file)), file, user, format, extra.map((f) => ({ bytes: fs.readFileSync(path.join(dir, f)), fileName: f })));
     console.log(`${type} ${key} template: ${r.lines} rows in ${r.sections} headers`);
   }
   await prisma.$disconnect();

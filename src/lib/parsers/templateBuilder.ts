@@ -29,15 +29,46 @@ const blankLine = (l: Pick<CostLine, "sectionKey" | "sectionLabel" | "item" | "c
   ...l,
 });
 
-/** Union of labels, case-insensitive, most frequent spelling wins, ordered by (first row position, frequency). */
-function unionLabels(rows: Array<Array<{ label: string; pos: number }>>): string[] {
+/**
+ * Free-text rows of the actual sheets are spelled differently from style to style ("tassal", "tassels", "tassel with coin";
+ * "emb neck mtr", "gadhwal emb neck mtr"; "frieght"). The template keeps ONE row per kind of cost.
+ */
+const ROW_ALIASES: Array<[RegExp, string]> = [
+  [/fr[ie]+ght/i, "freight"],
+  [/tass?[ae]ls?.*coin/i, "tassels with coin"],
+  [/tass?[ae]ls?.*dori/i, "tassels with dori"],
+  [/^tass?[ae]ls?$/i, "tassels"],
+  [/emb.*yoke|yoke.*emb/i, "emb yoke + sleeve"],
+  [/emb.*neck.*(&|and|\+).*sle|neck.*sle.*emb/i, "emb neck & sleeve"],
+  [/emb.*neck|neck.*emb/i, "emb neck"],
+  [/emb.*sle|sle.*emb/i, "emb sleeve"],
+  [/front.*emb|emb.*front/i, "emb front"],
+  [/palla/i, "emb palla"],
+  [/katha/i, "emb katha work"],
+  [/couching/i, "couching emb"],
+  [/foil/i, "foil print"],
+  [/lace.*neck/i, "lace neck"],
+  [/lace.*sle/i, "lace sleeve"],
+  [/^emb\b.*mtr$|^emb mtr$/i, "emb mtr"],
+];
+/** Fabric purchase rows are named after the fabric ("40x30s COTTON Greige"); their processing rows after the process. One generic row covers them. */
+const PROCESSING = /finish|print(ed|ing)\b.*\b(fabric|cotton|pst|poly)|\b(fabric|cotton|pst|poly)\b.*print(ed|ing)/i;
+export const canonicalRow = (label: string): string => {
+  const l = collapse(label);
+  for (const [re, name] of ROW_ALIASES) if (re.test(l)) return name;
+  return l;
+};
+
+/** Union of labels (after aliasing), case-insensitive, most frequent spelling wins, ordered by (first row position, frequency). */
+function unionLabels(rows: Array<Array<{ label: string; pos: number }>>, canon: (l: string) => string = collapse): string[] {
   const acc = new Map<string, { spell: Map<string, number>; pos: number; n: number }>();
   for (const r of rows)
     for (const { label, pos } of r) {
-      const key = collapse(label).toLowerCase();
+      const c = canon(label);
+      const key = c.toLowerCase();
       if (!key) continue;
       const e = acc.get(key) ?? { spell: new Map(), pos, n: 0 };
-      e.spell.set(collapse(label), (e.spell.get(collapse(label)) ?? 0) + 1);
+      e.spell.set(c, (e.spell.get(c) ?? 0) + 1);
       e.pos = Math.min(e.pos, pos);
       e.n++;
       acc.set(key, e);
@@ -49,7 +80,11 @@ function unionLabels(rows: Array<Array<{ label: string; pos: number }>>): string
     .map((e) => e.label);
 }
 
-export function buildActualTemplate(parsed: ParsedActualWorkbook, fileName = parsed.fileName): ActualCosting {
+export function buildActualTemplate(input: ParsedActualWorkbook | ParsedActualWorkbook[], fileName?: string): ActualCosting {
+  // several reference workbooks can be learnt together: the template is the union of every row seen
+  const books = Array.isArray(input) ? input : [input];
+  const parsed = { fileName: books.map((b) => b.fileName).join(" + "), sheets: books.flatMap((b) => b.sheets), issues: [] as never[] } as ParsedActualWorkbook;
+  fileName ??= parsed.fileName;
   const ref = `Reference: ${fileName}`;
   const lines: CostLine[] = [];
   const add = (key: string, label: string, item: string, calc: CostLine["calc"] = "QTY_X_RATE") => lines.push(blankLine({ sectionKey: key, sectionLabel: label, item, calc }, `${key}:${slug(item)}`, ref));
@@ -61,11 +96,13 @@ export function buildActualTemplate(parsed: ParsedActualWorkbook, fileName = par
       .map((l, i) => ({ label: l.item, pos: i })),
   );
   ["Fabric 1", "Fabric 2", "Fabric 3"].forEach((f) => add("FABRIC_ORDER", "FABRIC ORDER", f));
-  for (const label of unionLabels(addOns)) add("FABRIC_ORDER", "FABRIC ORDER", label);
+  // processing of the fabric (finishing / printing) is bought separately in many sheets
+  if (parsed.sheets.some((s) => s.doc.lines.some((l) => l.sectionKey === "FABRIC_ORDER" && PROCESSING.test(l.item)))) add("FABRIC_ORDER", "FABRIC ORDER", "Fabric finishing / printing");
+  for (const label of unionLabels(addOns, canonicalRow)) add("FABRIC_ORDER", "FABRIC ORDER", label);
 
   const lab = (key: string) => parsed.sheets.map((s) => s.doc.lines.filter((l) => l.sectionKey === key).map((l, i) => ({ label: l.item, pos: i })));
   for (const label of unionLabels(lab("CMT"))) add("CMT", "CMT", label);
-  for (const label of unionLabels(lab("TRIMS"))) add("TRIMS", "TRIMS", label);
+  for (const label of unionLabels(lab("TRIMS"), canonicalRow)) add("TRIMS", "TRIMS", label);
   add("LD_CHARGES", "LD CHARGES", "LD CHARGES", "ENTERED_AMOUNT");
   for (const label of unionLabels(lab("REJECT"))) add("REJECT", "REJECT", label);
 

@@ -47,10 +47,10 @@ Database integration tests run when `TEST_DATABASE_URL` points to a disposable d
 
 ### Default templates (what each new costing starts with)
 
-`npm run db:seed` builds the default headers/rows from the reference workbooks in `data/reference/` (structure only): one **Actual** template and
+`npm run db:seed` builds the default headers/rows from the reference workbooks in `data/reference/` (structure only): one **Actual** template (learnt from both actual workbooks, 63 sheets) and
 one **Client** template **per customer layout** (`DEFAULT` = the original GET layout, `YOUSTA` = the YAS… layout).
 Afterwards the templates belong to you: **Templates** page → *Edit structure* (add/rename/remove rows and headers, default UOM and GST) or
-*Rebuild from a reference workbook* (`npm run template -- actual|client file.xlsx [FORMAT_KEY ["Layout name"]]`). Changing a template affects new costings only.
+*Rebuild from a reference workbook* (`npm run template -- actual a.xlsx [b.xlsx …]` or `npm run template -- client file.xlsx [FORMAT_KEY ["Layout name"]]`). Changing a template affects new costings only.
 
 #### Client layouts per customer / brand
 Customers do not share one client sheet: the GET sheets and the YOUSTA sheets differ in headers, default rows, the single *CM* amount row and the price chain
@@ -92,7 +92,7 @@ default templates. Limits: one person at a time, no login, data is per browser/c
 2. **Style number.** Existing styles open directly; anything uncertain says *“Possible match found — please confirm”*; unknown numbers can be created.
 3. **Style image** and **CAD PDF** upload (drag & drop). The CAD parser fills *CAD DATA*; doubtful values are marked **VERIFY** and are editable/confirmable.
 4. **Category** (Core & Ultimate / Fashion / High Fashion) sets the client Overhead+Margin rate.
-5. **Costing mode** Actual ⇄ Client. Each opens with all its rows. Enter quantities, rates, GST, UOM; add components or headers; remove headers/rows
+5. **Costing mode** Actual ⇄ Client. Each opens with all its rows. Enter quantities, rates, GST, UOM (number cells accept sums such as `4065+1617` or `1.1+0.8+1.35`, as the sheets do); add components or headers; remove headers/rows
    this style does not need (restorable); *Apply CAD to costing* feeds consumption. *Save as v1* / *Save version*; *Export* PDF / Excel (live formulas).
 6. **Comparison** tab: Actual vs Client of the same style, group by group, updating as values are entered.
 
@@ -153,16 +153,16 @@ Uploads go through a `FileStore` interface (local disk now, swap for S3/GCS).
 
 * **No authentication**: the acting user is a name sent as `x-user` and recorded on versions/audit; add real auth before multi-user use.
 * **No customers/brands exist in the reference files**, so none are seeded; style → customer mapping is manual.
-* **Default rows are the union of what the reference workbooks contain** (e.g. Actual: Fabric 1-3 plus every add-on row seen, CMT / CMT KURTA / CMT BOTTOM, 16 trims). Trim them once in *Templates*; remove the rest per style.
+* **Default rows are the union of what the reference workbooks contain** (e.g. Actual: Fabric 1-3, a finishing / printing row and one row per kind of add-on, CMT / CMT KURTA / CMT BOTTOM, 17 trims). Trim them once in *Templates*; remove the rest per style.
 * **CAD “Total Length 152.54 m”** in the sample is ≈ the 3.87 m marker in *inches* (39.4×); extracted as printed and flagged. The sample CAD contains only `FRONT BLOCK CUT 2`, so Length per Set may not be full-garment consumption (flagged).
 * **Client “FINANCE COST 3%”** label vs formula `=L43*0`: the applied factor is an explicit input (default 0); the label is a reference. `FINAL PO = FOB − finance cost` is kept as in the source. Garment Rejection %, Testing, transport etc. are entered per style (no defaults).
-* The reference actual sheets contain formula quirks (next-row references in `E12/E13`, shifted rejection formulas, `D41 + D50` in 2 sheets, …). The engine uses the canonical `qty × rate`; all 28 reference sheets reproduce the workbook's cached values (verification tests).
+* The reference actual sheets (63) contain formula quirks (next-row references in `E12/E13`, shifted rejection formulas, `D41 + D50` in 2 sheets, …). The engine uses the canonical `qty × rate`; all 28 reference sheets reproduce the workbook's cached values (verification tests).
 * Comparison grouping (which actual lines compare with which client category) is an interpretation; configurable (Masters → Costing Rules).
 * Fabric / Rate masters start empty (they are user-maintained); nothing is auto-priced.
 * CAD parsing needs a PDF text layer; layouts with unfamiliar labels need a synonym added to `LABELS`.
 
 ## Tests
 
-`npm test` – 71 tests (and `npm run test:standalone` runs the 6 database tests against the single-file store): engine verification against all 28 reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
+`npm test` – 83 tests (and `npm run test:standalone` runs the 6 database tests against the single-file store): engine verification against all 63 actual reference sheets (recomputed values equal the workbook's cached values), client chain (line-by-line L/M/O),
 GST, finance/transport/final PO, CAD extraction (supplied PDF + alternative layouts + no-text-layer), style matching, validation, overrides,
 CAD → costing mapping, comparison reconciliation, templates, version diffs, per-customer client layouts (YOUSTA template, values typed in reproduce two real customer sheets' totals, Excel output and *excel update* sheet), and (with `TEST_DATABASE_URL`) DB templates/layouts/versioning/audit/CAD revisions.

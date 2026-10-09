@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { cn } from "@/lib/format";
+import { evalExpression, isExpression } from "@/lib/calculations/expression";
 
 /**
  * Editable numeric cell. Keeps its own text while focused so "1." / "0.0" can be typed;
@@ -45,6 +46,7 @@ export function NumberCell({
         aria-label={ariaLabel}
         disabled={disabled}
         value={text}
+        title={isExpression(text) && evalExpression(text) !== null ? `= ${parseFloat(evalExpression(text)!.toFixed(6))}` : undefined}
         placeholder={placeholder}
         onFocus={(e) => {
           setFocus(true);
@@ -56,11 +58,18 @@ export function NumberCell({
         }}
         onChange={(e) => {
           const raw = e.target.value.replace(/,/g, "");
-          if (!/^-?\d*\.?\d*$/.test(raw)) return;
+          if (/^-?\d*\.?\d*$/.test(raw)) {
+            setText(raw);
+            if (raw === "" || raw === "-") return onCommit(null);
+            const n = Number(raw);
+            if (Number.isFinite(n) && !raw.endsWith(".")) onCommit(n / scale);
+            return;
+          }
+          // typed as a sum, e.g. 4065+1617 or 1.1+0.8+1.35: keep the text while typing, commit the result once it is complete
+          if (!/^[-+*/().\d\s×÷−]*$/.test(raw)) return;
           setText(raw);
-          if (raw === "" || raw === "-") return onCommit(null);
-          const n = Number(raw);
-          if (Number.isFinite(n) && !raw.endsWith(".")) onCommit(n / scale);
+          const v = evalExpression(raw);
+          if (v !== null) onCommit(v / scale);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();

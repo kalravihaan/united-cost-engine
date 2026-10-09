@@ -27,11 +27,11 @@ export const DEFAULT_RULES: RuleSet = {
     { id: "a-cmt", costingType: "ACTUAL", group: "CMT", sectionKeys: ["CMT"] },
     { id: "a-ld", costingType: "ACTUAL", group: "Other", sectionKeys: ["LD_CHARGES"] },
     { id: "a-fab-emb", costingType: "ACTUAL", group: "Embellishment", sectionKeys: ["FABRIC_ORDER"], itemRegex: "emb|hand ?work|scallop|\\bprint\\b" },
-    { id: "a-fab-trim", costingType: "ACTUAL", group: "Trims", sectionKeys: ["FABRIC_ORDER"], itemRegex: "zipper|elastic|lace|dori|tassel|tassle|button|bead|beed|trims? ?\\d" },
+    { id: "a-fab-trim", costingType: "ACTUAL", group: "Trims", sectionKeys: ["FABRIC_ORDER"], itemRegex: "zipper|elastic|lace|dori|tass?[ae]l|button|bead|beed|trims? ?\\d" },
     { id: "a-fab", costingType: "ACTUAL", group: "Fabric", sectionKeys: ["FABRIC_ORDER"] },
     { id: "a-trim-label", costingType: "ACTUAL", group: "Labels & Tags", sectionKeys: ["TRIMS"], itemRegex: "label|lbl|tag|sticker|wash ?care|barcode|match it" },
     { id: "a-trim-pack", costingType: "ACTUAL", group: "Packaging", sectionKeys: ["TRIMS"], itemRegex: "carton|poly ?bag|master|divider|gum|strap|rfid" },
-    { id: "a-trim-other", costingType: "ACTUAL", group: "Other", sectionKeys: ["TRIMS"], itemRegex: "freight" },
+    { id: "a-trim-other", costingType: "ACTUAL", group: "Other", sectionKeys: ["TRIMS"], itemRegex: "fr[ie]+ght" },
     { id: "a-trim", costingType: "ACTUAL", group: "Trims", sectionKeys: ["TRIMS"] },
     // ── Client ──
     { id: "c-fab", costingType: "CLIENT", group: "Fabric", sectionKeys: ["fabric"] },

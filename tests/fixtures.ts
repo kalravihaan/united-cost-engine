@@ -9,9 +9,12 @@ const root = path.resolve(__dirname, "..", "data", "reference");
 export const sourcePath = (f: string) => (f.endsWith(".pdf") ? path.join(__dirname, "fixtures", f) : path.join(root, f));
 
 let actual: Promise<ParsedActualWorkbook> | null = null;
+let actual2: Promise<ParsedActualWorkbook> | null = null;
 let client: Promise<ParsedClientWorkbook> | null = null;
 
 export const actualFixture = () => (actual ??= parseActualWorkbook(fs.readFileSync(sourcePath("actual_costing.xlsx")), "actual_costing.xlsx", () => new Date("2026-01-01T00:00:00Z")));
+/** second actual workbook: 35 more sheets (7 YET… products, 5008/5009 colourways, 6xxx series) */
+export const actualFixture2 = () => (actual2 ??= parseActualWorkbook(fs.readFileSync(sourcePath("actual_costing_2.xlsx")), "actual_costing_2.xlsx", () => new Date("2026-01-01T00:00:00Z")));
 export const clientFixture = () => (client ??= parseClientWorkbook(fs.readFileSync(sourcePath("client_costing.xlsx")), "client_costing.xlsx", () => new Date("2026-01-01T00:00:00Z")));
 export const cadFixture = () => parseCadPdf(fs.readFileSync(sourcePath("cad_72232.pdf")));
 export const rawClientWorkbook = () => loadWorkbook(fs.readFileSync(sourcePath("client_costing.xlsx")));

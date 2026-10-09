@@ -15,12 +15,12 @@ import { blobs } from "./shims/fileStore";
   const user = "Costing Desk";
   await seedDefaultRules();
   const jobs = [
-    { type: "ACTUAL", file: "actual_costing.xlsx", format: null },
-    { type: "CLIENT", file: "client_costing.xlsx", format: null },
-    { type: "CLIENT", file: "client_costing_YOUSTA.xlsx", format: { key: "YOUSTA", label: "YOUSTA" } },
+    { type: "ACTUAL", file: "actual_costing.xlsx", format: null, extra: ["actual_costing_2.xlsx"] },
+    { type: "CLIENT", file: "client_costing.xlsx", format: null, extra: [] },
+    { type: "CLIENT", file: "client_costing_YOUSTA.xlsx", format: { key: "YOUSTA", label: "YOUSTA" }, extra: [] },
   ] as const;
   for (const j of jobs) {
-    const r = await rebuildTemplateFromReference(j.type, fs.readFileSync(path.join(dir, j.file)) as never, j.file, user, j.format);
+    const r = await rebuildTemplateFromReference(j.type, fs.readFileSync(path.join(dir, j.file)) as never, j.file, user, j.format, j.extra.map((f) => ({ bytes: fs.readFileSync(path.join(dir, f)) as never, fileName: f })));
     console.log(`${j.type} ${r.format}: ${r.lines} rows`);
   }
   const out = { format: "uce-data", version: 1, savedAt: new Date().toISOString(), db: memdb.snapshot(), blobs: Object.fromEntries([...blobs].map(([k, v]) => [k, Buffer.from(v).toString("base64")])) };

@@ -51,3 +51,32 @@ Implemented (see README → *Client layouts per customer / brand*):
 * Excel output follows the layout (sheet name, header wording, vendor/brand block, CM amount row, final-price row, `excel update` sheet); PDF and Comparison show the layout's own price chain.
 
 Still open: brand summary report (§4.4), the encrypted GETKRTSFUT6002/6098/6099 files (passwords needed), `2243 COSTING.xlsx` (not yet studied), MSME price cell of the YOUSTA upload sheet (left blank), `Total Qty` of the upload sheet (left blank until PO quantity exists in the engine).
+
+## 6. Second actual workbook (`livesmart_cost_closer.xlsx`, 35 sheets) – findings
+
+Reviewed with the real parser and engine (`data/reference/actual_costing_2.xlsx`, tests in `tests/actual-import-2.test.ts`).
+
+**Same format.** Every sheet has the identical row layout (rows 2–50, same anchors, same formulas). The engine recomputes all totals, cost per piece, profit and
+per-piece profit of all 35 sheets equal to the workbook's own values. No new section or header exists.
+
+**New or missing rows (fixed)**
+* TRIMS: **photo tag** (replaces *match it tag* in the 6xxx series) was missing; *frieght* is just a misspelling of *freight* (now one row).
+* FABRIC ORDER is six free-text rows: purchase of the fabric, its **finishing / printing** (billed as a second line in 22 sheets), then add-ons. Added a generic
+  *Fabric finishing / printing* row; add-ons are now one row per kind: emb neck, emb sleeve, emb neck & sleeve, emb yoke + sleeve, emb front, emb palla, emb katha work,
+  couching emb, foil print, lace neck, lace sleeve, tassels, tassels with coin, button (spelling variants such as *tassal*, *gadhwal emb neck mtr*, *sleeve emb* map to them).
+  The Actual template grew from 40 to 55 rows; it is learnt from both workbooks (`npm run template -- actual a.xlsx b.xlsx`).
+* Comparison groups: *tassal* was counted as Fabric (now Trims) and *frieght* as Trims (now Other); every row of both workbooks now lands in a group.
+
+**Format quirks (handled)**
+* Rate typed in **column D** with `=B46*D46` in the value-loss rows of the 5008 colourway sheets (value loss 6,160 was read as 0).
+* **Text typed as a number** (`??` in 4112): Excel shows #VALUE!; the engine now warns and treats it as blank.
+* **Sums typed into input cells**: dispatch `=4065+1617`, quantity `=14038-600`, CMT rate `=62.32+53.27`, consumption `=1.1+0.8+1.35+0.05+0.17`.
+  The import keeps the value and the typed expression; number cells in the app now accept sums too.
+* Known formula anomalies repeat in all sheets (`E12 =B12*C13`, `E13 =B13*C14`, profit % variant in the 5008 sage / mustard sheets); the engine keeps its canonical
+  QTY × RATE and flags the variant, as before.
+* Production notes beside the costing (fabric received, cut quantity, shipped quantity, shortage, fabric used, fent) are free text in columns G/H; kept as notes.
+* Two sheets carry the wrong title (`5005` is titled *5056 - blue*, `6100` is titled *6012 - maroon*): reported as TITLE_MISMATCH, style number taken from the sheet name.
+
+**Open (needs a decision): colourways.** The workbook holds one actual costing **per colour** of a style (5008 × 6 colours, 5009 × 2), each with its own order / dispatch
+quantity, fabric received and cost per piece (197.80 – 220.02). The engine keeps one costing per style and mode, so these cannot all be stored yet. The client side shows the
+same pattern (client files 5008, 5008B/C/D carry their own product IDs per colour).

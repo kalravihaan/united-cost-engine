@@ -49,7 +49,7 @@ export async function saveTemplate(type: "ACTUAL" | "CLIENT", input: unknown, us
  * Learn the structure (headers + rows) from a reference workbook and store it as the default template.
  * No costing values and no styles are imported.
  */
-export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", bytes: Buffer, fileName: string, user: string, format?: { key: string; label?: string } | null) {
+export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", bytes: Buffer, fileName: string, user: string, format?: { key: string; label?: string } | null, extras: Array<{ bytes: Buffer; fileName: string }> = []) {
   const key = formatKeyOf(type, format?.key);
   const fmt: ClientFormat = key === DEFAULT_FORMAT ? { ...DEFAULT_CLIENT_FORMAT, ...(format?.label ? { label: format.label } : {}) } : { key, label: format?.label?.trim() || key };
   const put = await fileStore().put(bytes, { folder: "reference-workbooks", name: fileName });
@@ -60,7 +60,10 @@ export async function rebuildTemplateFromReference(type: "ACTUAL" | "CLIENT", by
   if (type === "ACTUAL") {
     const p = await parseActualWorkbook(bytes, fileName);
     if (!p.sheets.length) throw new Error("No usable worksheets found in the actual-costing reference workbook");
-    doc = buildActualTemplate(p, fileName);
+    // several reference workbooks can be learnt together; the template is the union of every row seen
+    const more = [];
+    for (const x of extras) more.push(await parseActualWorkbook(x.bytes, x.fileName));
+    doc = buildActualTemplate([p, ...more], [fileName, ...extras.map((x) => x.fileName)].join(" + "));
   } else {
     const p = await parseClientWorkbook(bytes, fileName);
     if (!p.sheets.length) throw new Error(`No usable worksheet found: ${p.issues.map((i) => i.message).join("; ")}`);

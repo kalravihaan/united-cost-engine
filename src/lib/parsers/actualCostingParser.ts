@@ -132,7 +132,24 @@ function lineFromRow(
   const e = readCell(ws, r, 5);
   const item = collapse(text(a));
   const q = num(b);
-  const rt = num(c);
+  let rt = num(c);
+  // Some sheets keep the rate of a row in column D and multiply B×D in column E (e.g. value-loss rows of the 5008 sheets)
+  const d = readCell(ws, r, 4);
+  let rateCell = c;
+  let rateCol = "RATE";
+  const eRefs = e.formula ? formulaRefs(e.formula).sort() : [];
+  if (rt === null && num(d) !== null && eRefs.length === 2 && eRefs[0] === `B${r}` && eRefs[1] === `D${r}`) {
+    rt = num(d);
+    rateCell = d;
+    rateCol = "RATE (column D)";
+    issues.push({ level: "info", code: "RATE_IN_COLUMN_D", message: `${ws.name}!D${r} "${item || "(blank)"}": the rate is typed in column D (E = B×D); read as the rate.`, ref: ref(file, ws.name, d.address, "D") });
+  }
+  // typed text where a number belongs ("??"): Excel shows #VALUE!, the engine treats it as blank and says so
+  for (const [cell, label] of [[b, "QTY"], [c, "RATE"]] as const) {
+    const t = text(cell).trim();
+    if (t && num(cell) === null && !cell.formula)
+      issues.push({ level: "warning", code: "NON_NUMERIC_INPUT", message: `${ws.name}!${cell.address} "${item || "(blank)"}": ${label} is text ("${t}"), not a number; treated as blank – enter the figure.`, ref: ref(file, ws.name, cell.address, label) });
+  }
   // Source slots with neither a label nor any number are not cost items.
   if (!item && q === null && rt === null) return null;
   const sheet = ws.name;
@@ -157,8 +174,10 @@ function lineFromRow(
     prov: {},
     sourceRef: { file, sheet, cell: `A${r}`, note: `row ${r}` },
   };
-  if (q !== null) line.prov.quantity = { origin: "IMPORT", ref: ref(file, sheet, b.address, "QTY") };
-  if (rt !== null) line.prov.rate = { origin: "IMPORT", ref: ref(file, sheet, c.address, "RATE") };
+  // a number typed as a sum in the sheet (=4065+1617) is kept as its value; the typed expression is kept in the source note
+  const typed = (cell: { formula: string | null }) => (cell.formula ? { note: `typed as =${cell.formula}` } : {});
+  if (q !== null) line.prov.quantity = { origin: "IMPORT", ref: { ...ref(file, sheet, b.address, "QTY"), ...typed(b) } };
+  if (rt !== null) line.prov.rate = { origin: "IMPORT", ref: { ...ref(file, sheet, rateCell.address, rateCol), ...typed(rateCell) } };
   if (e.formula) line.sourceFormula = `=${e.formula}`;
 
   if (e.formula && !isOwnRowQtyRate(e.formula, r)) {
