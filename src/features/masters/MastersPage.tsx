@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Download, Plus, Trash2 } from "lucide-react";
 import { MASTERS, type MasterDef, type MasterField } from "@/data/masterConfig";
 import { Badge, Button, Card, CardHeader, EmptyState, Input, Select, Skeleton } from "@/components/ui/primitives";
 import { Combobox, Dialog } from "@/components/ui/overlay";
@@ -53,6 +53,17 @@ function MasterTable({ def }: { def: MasterDef }) {
   }, [def, toast]);
   React.useEffect(() => { load(); }, [load]);
 
+  const hasStandards = def.name === "fabrics" || def.name === "rates";
+  const loadStandards = async () => {
+    try {
+      const r = await api.loadStandardRates();
+      toast.push({ kind: "ok", title: "Standard rates loaded", body: `Rates: ${r.rates.added} (replaced ${r.rates.replaced}). Fabrics: ${r.fabrics.added} added, ${r.fabrics.updated} refreshed${r.fabrics.keptYours ? `, ${r.fabrics.keptYours} of yours kept` : ""}.` });
+      await load();
+    } catch (e) {
+      toast.push({ kind: "error", title: "Could not load standard rates", body: (e as Error).message });
+    }
+  };
+
   const listFields = def.fields.filter((f) => f.list);
   const show = (f: MasterField, row: Row): React.ReactNode => {
     const v = row[f.key];
@@ -66,11 +77,16 @@ function MasterTable({ def }: { def: MasterDef }) {
 
   return (
     <Card>
-      <CardHeader title={def.label} subtitle={def.description} actions={!def.noCreate ? <Button variant="primary" size="sm" onClick={() => setCreating(true)}><Plus size={13} /> New</Button> : undefined} />
+      <CardHeader title={def.label} subtitle={def.description} actions={
+        <div className="flex items-center gap-1.5">
+          {hasStandards && <Button variant="outline" size="sm" onClick={loadStandards}><Download size={13} /> Load standard rates</Button>}
+          {!def.noCreate && <Button variant="primary" size="sm" onClick={() => setCreating(true)}><Plus size={13} /> New</Button>}
+        </div>
+      } />
       {rows === null ? (
         <div className="space-y-2 p-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
       ) : rows.length === 0 ? (
-        <EmptyState title={`No ${def.label.toLowerCase()} yet`}>{def.noCreate ? "Rows appear here as the workflow creates them." : "Use “New” to add the first one."}</EmptyState>
+        <EmptyState title={`No ${def.label.toLowerCase()} yet`}>{def.noCreate ? "Rows appear here as the workflow creates them." : hasStandards ? "Use “Load standard rates” for the values from the cost analysis, or “New” to add your own." : "Use “New” to add the first one."}</EmptyState>
       ) : (
         <div className="max-h-[calc(100vh-190px)] overflow-auto">
           <table className="w-full text-[12.5px]">

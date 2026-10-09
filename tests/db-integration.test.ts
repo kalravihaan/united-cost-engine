@@ -139,4 +139,24 @@ d("database: templates, versions, audit, CAD revisions", () => {
     expect((await m.cost.getWorkspace(s2.id)).style.clientFormat).toBe("DEFAULT"); // falls back to the customer's layout
     expect((await m.cost.getWorkspace(s3.id)).style.clientFormat).toBeNull(); // nothing assigned → default layout
   });
+
+  it("loads the standard rates into the fabric and rate masters, repeatably, without touching the user's own rows", async () => {
+    const svc = await import("@/services/standardRatesService");
+    await m.prisma.rateMaster.create({ data: { costingType: "ACTUAL", sectionKey: "TRIMS", itemName: "my own tag", rate: 9, source: "Costing Desk" } });
+    await m.prisma.fabricMaster.create({ data: { name: "Cotton slub", lastRate: 99, source: "Costing Desk" } });
+    const first = await svc.loadStandardRates("t");
+    expect(first.fabrics.keptYours).toBe(1);
+    expect(first.rates.replaced).toBe(0);
+    expect(first.rates.added).toBeGreaterThan(30);
+    const count = await m.prisma.rateMaster.count();
+    const second = await svc.loadStandardRates("t");
+    expect(second.rates.replaced).toBe(first.rates.added); // refreshed, not duplicated
+    expect(await m.prisma.rateMaster.count()).toBe(count);
+    expect((await m.prisma.rateMaster.findMany({ where: { itemName: "my own tag" } })).length).toBe(1);
+    expect((await m.prisma.fabricMaster.findUnique({ where: { name: "Cotton slub" } })).lastRate).toBe(99); // yours, kept
+    const flex = await m.prisma.fabricMaster.findUnique({ where: { name: "Cotton flex" } });
+    expect(flex.lastRate).toBeGreaterThan(80);
+    expect(flex.source).toMatch(/^Standard rates/);
+    expect((await m.prisma.auditEvent.findMany({ where: { action: "MASTER_LOAD_STANDARD_RATES" } })).length).toBe(2);
+  });
 });

@@ -134,7 +134,7 @@ export const MASTERS: MasterDef[] = [
   },
   {
     name: "fabrics", label: "Fabric Masters", model: "fabricMaster", display: "name", orderBy: "name",
-    description: "Fabrics observed in the imported costings (last seen rate is informational, never applied automatically).",
+    description: "Fabric types with their standard landed rate from the cost analysis (reference only, never applied automatically). Add your own; \"Load standard rates\" refreshes only the rows whose source says Standard rates.",
     fields: [
       { key: "name", label: "Fabric", type: "text", required: true, list: true },
       { key: "fabricType", label: "Type", type: "text", list: true },
@@ -148,7 +148,7 @@ export const MASTERS: MasterDef[] = [
   },
   {
     name: "rates", label: "Rate Masters", model: "rateMaster", display: "itemName", orderBy: "itemName",
-    description: "Rates observed in the imported costings, by item.",
+    description: "Standard rates from the cost analysis: embellishment, trims by brand, CMT per piece (median of the reference sheets; source shows sheet count and range). Reference only – never applied automatically.",
     fields: [
       { key: "costingType", label: "Costing", type: "select", options: ["ACTUAL", "CLIENT"], required: true, list: true },
       { key: "sectionKey", label: "Section", type: "text", required: true, list: true },

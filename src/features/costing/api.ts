@@ -122,6 +122,7 @@ export const api = {
   rules: () => req<RuleSet>("/api/rules"),
   audit: (styleId: string) => req<AuditRow[]>(`/api/audit?styleId=${styleId}`),
   masterOptions: (name: string) => req<Array<{ id: string; label: string }>>(`/api/masters/${name}?options=1`),
+  loadStandardRates: () => req<{ fabrics: { added: number; updated: number; keptYours: number }; rates: { replaced: number; added: number } }>("/api/standard-rates", { method: "POST" }),
   masterList: (name: string) => req<Array<Record<string, unknown>>>(`/api/masters/${name}`),
   masterCreate: (name: string, b: Record<string, unknown>) => req<Record<string, unknown>>(`/api/masters/${name}`, { method: "POST", body: JSON.stringify(b) }),
   masterUpdate: (name: string, id: string, b: Record<string, unknown>) => req<Record<string, unknown>>(`/api/masters/${name}/${id}`, { method: "PATCH", body: JSON.stringify(b) }),

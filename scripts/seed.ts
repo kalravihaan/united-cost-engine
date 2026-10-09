@@ -3,10 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { rebuildTemplateFromReference } from "@/services/templateService";
 import { seedDefaultRules } from "@/services/rulesService";
+import { loadStandardRates } from "@/services/standardRatesService";
 import { prisma } from "@/server/db";
 
 /**
- * Initial configuration only: NO styles, costings, rates or customers are created.
+ * Initial configuration only: NO styles, costings or customers are created. The Fabric / Rate masters get the analysis's standards (reference values, never applied).
  *  - editable costing/grouping rules
  *  - the default costing structure of each mode (all headers and rows), learnt from the reference workbooks in
  *    data/reference/. Re-run any time; use Masters → Costing Templates to edit the structure afterwards.
@@ -32,6 +33,7 @@ async function main() {
     const r = await rebuildTemplateFromReference(type, fs.readFileSync(path.join(dir, file)), file, user, format, extra.map((f) => ({ bytes: fs.readFileSync(path.join(dir, f)), fileName: f })));
     console.log(`${type} ${key} template: ${r.lines} rows in ${r.sections} headers`);
   }
+  console.log("standard rates:", JSON.stringify(await loadStandardRates(user)));
   await prisma.$disconnect();
 }
 main().catch((e) => {

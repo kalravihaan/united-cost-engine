@@ -74,3 +74,18 @@ describe("benchmarks", () => {
     expect(r.rows.find((x) => x.key === "cost")?.note).toMatch(/no plain sheet in this segment/);
   });
 });
+
+describe("standard rates for the masters", () => {
+  it("builds fabric and rate rows from the analysis", async () => {
+    const { standardRateRows, STANDARD_SOURCE } = await import("@/lib/analysis/standardRates");
+    const { fabrics, rates } = standardRateRows();
+    expect(fabrics.map((f) => f.name)).toEqual(expect.arrayContaining(["Cotton slub", "Cotton 40x30", "PST / Gadhwal", "Cotton flex", "Rayon"]));
+    expect(fabrics.find((f) => f.name === "Cotton slub")).toMatchObject({ lastRate: 77, defaultUom: "m" });
+    expect(fabrics.some((f) => f.name.includes(" + ") || f.name === "Other")).toBe(false);
+    expect(new Set(rates.map((r) => r.sectionKey))).toEqual(new Set(["FABRIC_ORDER", "TRIMS", "CMT"]));
+    expect(rates.find((r) => r.itemName === "carton (YOUSTA)")).toMatchObject({ rate: 67, sectionKey: "TRIMS" });
+    expect(rates.find((r) => r.itemName === "CMT · KRTS 4xxx/6xxx (FUT) · Kurta / top")).toMatchObject({ rate: 67.25, uom: "pc" });
+    for (const r of rates) expect(r.source.startsWith(STANDARD_SOURCE) && r.rate > 0, r.itemName).toBe(true);
+    expect(new Set(rates.map((r) => `${r.sectionKey}|${r.itemName}`)).size).toBe(rates.length);
+  });
+});
