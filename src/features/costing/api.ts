@@ -57,6 +57,16 @@ export interface MatchResult {
   others: Array<{ id: string; number: string; confidence: number; reason: string }>;
 }
 
+export interface StyleImpact {
+  id: string;
+  number: string;
+  costings: Array<{ type: string; versions: number }>;
+  cadRuns: number;
+  files: number;
+  aliases: number;
+  auditEvents: number;
+}
+
 export interface StyleRow {
   id: string;
   number: string;
@@ -98,6 +108,8 @@ export interface AuditRow {
 
 export const api = {
   styles: (q?: string) => req<StyleRow[]>(`/api/styles${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  styleImpact: (id: string) => req<StyleImpact>(`/api/styles/${id}`),
+  deleteStyle: (id: string, number: string) => req<StyleImpact>(`/api/styles/${id}?confirm=${encodeURIComponent(number)}`, { method: "DELETE" }),
   match: (q: string) => req<MatchResult>(`/api/styles/match?q=${encodeURIComponent(q)}`),
   workspace: (id: string) => req<Workspace>(`/api/styles/${id}/workspace`),
   createStyle: (b: { number: string; customerId?: string | null; brandId?: string | null; categoryId?: string | null }) => req<{ id: string; number: string }>("/api/styles", { method: "POST", body: JSON.stringify(b) }),

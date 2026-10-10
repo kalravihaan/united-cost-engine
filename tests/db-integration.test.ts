@@ -172,4 +172,42 @@ d("database: templates, versions, audit, CAD revisions", () => {
     expect(await m.prisma.rateMaster.count()).toBe(count);
     expect((await m.prisma.rateMaster.findMany({ where: { itemName: "my own tag" } })).length).toBe(1);
   });
+
+  it("deleting a style removes its costings, versions, CAD, files and aliases but keeps the audit trail and other styles", async () => {
+    const keep = await m.style.createStyle({ number: "KEEP1", user: "t" });
+    const doomed = await m.style.createStyle({ number: "DEL1", user: "t" });
+    const tpl = (await m.tpl.getTemplate("ACTUAL")).doc;
+    const doc = m.lib.createFromTemplate(tpl, { number: "DEL1" }, "STRUCTURE");
+    await m.cost.saveCostingVersion({ styleId: doomed.id, doc, user: "u" });
+    await m.cost.saveCostingVersion({ styleId: keep.id, doc: m.lib.createFromTemplate(tpl, { number: "KEEP1" }, "STRUCTURE"), user: "u" });
+    const bytes = fs.readFileSync(path.resolve(__dirname, "fixtures", "cad_72232.pdf"));
+    await m.cad.uploadCad({ styleId: doomed.id, bytes, fileName: "cad.pdf", user: "t" });
+    await m.style.confirmAlias({ styleId: doomed.id, alias: "DEL1 - RED", user: "t" });
+
+    const impact = await m.style.styleImpact(doomed.id);
+    expect(impact).toMatchObject({ number: "DEL1", costings: [{ type: "ACTUAL", versions: 1 }], cadRuns: 1, files: 2, aliases: 1 }); // the CAD PDF and its preview
+    const keepFilesBefore = await m.prisma.storedFile.count({ where: { styleId: keep.id } });
+
+    await m.style.deleteStyle({ styleId: doomed.id, user: "boss" });
+    expect(await m.prisma.style.findUnique({ where: { id: doomed.id } })).toBeNull();
+    expect(await m.prisma.costing.count({ where: { styleId: doomed.id } })).toBe(0);
+    expect(await m.prisma.cadExtraction.count({ where: { styleId: doomed.id } })).toBe(0);
+    expect(await m.prisma.storedFile.count({ where: { styleId: doomed.id } })).toBe(0);
+    expect(await m.prisma.styleAlias.count({ where: { alias: "DEL1 - RED" } })).toBe(0);
+    // another style is untouched
+    expect(await m.prisma.costing.count({ where: { styleId: keep.id } })).toBe(1);
+    expect(await m.prisma.storedFile.count({ where: { styleId: keep.id } })).toBe(keepFilesBefore);
+    // audit: earlier events survive (detached, number recorded) and the deletion is logged
+    const created = await m.prisma.auditEvent.findMany({ where: { action: "STYLE_CREATE", entityId: doomed.id } });
+    expect(created).toHaveLength(1);
+    expect(created[0].styleId).toBeNull();
+    expect(created[0].details.styleNumber).toBe("DEL1");
+    const del = await m.prisma.auditEvent.findMany({ where: { action: "STYLE_DELETE" } });
+    expect(del).toHaveLength(1);
+    expect(del[0]).toMatchObject({ userName: "boss", entityId: doomed.id });
+    expect(del[0].details.removed.costings[0].versions).toBe(1);
+    // the number can be used again
+    expect((await m.style.createStyle({ number: "DEL1", user: "t" })).number).toBe("DEL1");
+    await expect(m.style.deleteStyle({ styleId: "nope", user: "t" })).rejects.toThrow(/not found/i);
+  });
 });

@@ -9,6 +9,8 @@ import path from "node:path";
 export interface FileStore {
   put(bytes: Buffer, opts: { folder: string; name: string }): Promise<{ storagePath: string; sha256: string; size: number }>;
   get(storagePath: string): Promise<Buffer>;
+  /** Delete a stored file (callers make sure no other record uses the path). Missing files are not an error. */
+  remove(storagePath: string): Promise<void>;
 }
 
 export function sha256(bytes: Buffer | Uint8Array): string {
@@ -33,6 +35,12 @@ class LocalFileStore implements FileStore {
     const abs = path.resolve(this.root, storagePath);
     if (!abs.startsWith(path.resolve(this.root) + path.sep)) throw new Error("Invalid storage path");
     return fs.readFile(abs);
+  }
+
+  async remove(storagePath: string) {
+    const abs = path.resolve(this.root, storagePath);
+    if (!abs.startsWith(path.resolve(this.root) + path.sep)) throw new Error("Invalid storage path");
+    await fs.rm(abs, { force: true });
   }
 }
 

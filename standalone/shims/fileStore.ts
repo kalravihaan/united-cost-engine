@@ -4,6 +4,7 @@ import { sha256Hex } from "./sha256";
 export interface FileStore {
   put(bytes: Uint8Array, opts: { folder: string; name: string }): Promise<{ storagePath: string; sha256: string; size: number }>;
   get(storagePath: string): Promise<Uint8Array>;
+  remove(storagePath: string): Promise<void>;
 }
 export const sha256 = (b: Uint8Array) => sha256Hex(b);
 const safeName = (s: string) => s.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 120) || "file";
@@ -23,6 +24,9 @@ const store: FileStore = {
     const b = blobs.get(storagePath);
     if (!b) throw new Error("File not found");
     return b;
+  },
+  async remove(storagePath) {
+    blobs.delete(storagePath);
   },
 };
 export const fileStore = (): FileStore => store;
