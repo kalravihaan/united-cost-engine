@@ -31,6 +31,7 @@ describe("benchmarks", () => {
     expect(segmentFor("72232", null, "Live Smart")).toBe("Live Smart 4xxx/6xxx (FUT)");
     expect(segmentFor("51", "DEFAULT", null)).toBe("Live Smart 5xxx (CUT)");
     expect(segmentFor("72232", null, "YOUSTA")).toBe("YOUSTA");
+    expect(segmentFor("YAS26ZWEWYF72300", "DEFAULT", null)).toBe("YOUSTA"); // the YAS prefix wins over a default layout
   });
 
   it("types fabrics like the analysis", () => {

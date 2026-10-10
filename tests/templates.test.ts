@@ -127,7 +127,8 @@ describe("typed sums in number cells", () => {
   it("evaluates what the sheets type: pieces, consumption, CMT rate", async () => {
     const { evalExpression } = await import("@/lib/calculations/expression");
     expect(evalExpression("4065+1617")).toBe(5682);
-    expect(evalExpression("1.1+0.8+1.35+0.05+0.17")).toBeCloseTo(3.47, 12);
+    expect(evalExpression("1.1+0.8+1.35+0.05+0.17")).toBe(3.47); // no floating-point tail stored
+    expect(evalExpression("0.1+0.2")).toBe(0.3);
     expect(evalExpression("62.32+53.27")).toBeCloseTo(115.59, 12);
     expect(evalExpression("14038-600")).toBe(13438);
     expect(evalExpression("(1+2)*3")).toBe(9);

@@ -47,7 +47,8 @@ export function evalExpression(input: string): number | null {
     return v;
   }
   const v = sum();
-  return v !== null && i === s.length && Number.isFinite(v) ? v : null;
+  // 0.1+0.2 → 0.30000000000000004: keep 12 significant digits so typed sums store the number the user means
+  return v !== null && i === s.length && Number.isFinite(v) ? Number(v.toPrecision(12)) : null;
 }
 
 /** true when the text is more than a plain number (it needs evaluating) */

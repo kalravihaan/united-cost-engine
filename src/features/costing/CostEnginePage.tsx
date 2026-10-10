@@ -20,6 +20,7 @@ import { AuditPanel, ChainPanel, ChecksPanel, VersionsPanel } from "./panels";
 import { WorkflowBar } from "./WorkflowBar";
 import { useWorkspace, type CostingType, type Workbench } from "./useWorkspace";
 import { getUserName } from "./user";
+import { installLeaveGuard, setUnsaved } from "./unsaved";
 
 export function CostEnginePage() {
   const wb = useWorkspace();
@@ -69,6 +70,20 @@ export function CostEnginePage() {
   const issues = React.useMemo(() => wb.validate(mode), [wb.validate, mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const version = wb.loadedVersion[mode];
   const isDirty = wb.dirty[mode] > 0;
+  // "unsaved" = edits on top of a saved version, or values typed into a not-yet-saved costing (a fresh template draft counts as dirty only so that Save as v1 is enabled)
+  const anyDirty = (["ACTUAL", "CLIENT"] as const).some((t) => {
+    const d = wb.drafts[t];
+    if (!d || wb.dirty[t] === 0) return false;
+    if (wb.loadedVersion[t]) return true;
+    const entered = d.lines.some((l) => (l.quantity ?? 0) !== 0 || (l.rate ?? 0) !== 0 || (l.amount ?? 0) !== 0);
+    const a = d.type === "ACTUAL" ? d.actual : null;
+    return entered || (!!a && ((a.orderPcs.qty ?? 0) !== 0 || (a.dispatchPcs.qty ?? 0) !== 0 || (a.orderPcs.rate ?? 0) !== 0 || (a.dispatchPcs.rate ?? 0) !== 0 || (a.consumption.value ?? 0) !== 0));
+  });
+  React.useEffect(() => {
+    installLeaveGuard();
+    setUnsaved(anyDirty);
+  }, [anyDirty]);
+  React.useEffect(() => () => setUnsaved(false), []);
   const stored = mode === "ACTUAL" ? wb.ws?.actual : wb.ws?.client;
 
   /* CAD → costing dry run for the preview */

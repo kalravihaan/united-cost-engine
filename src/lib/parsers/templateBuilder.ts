@@ -117,7 +117,7 @@ export function buildActualTemplate(input: ParsedActualWorkbook | ParsedActualWo
   };
 }
 
-export const DEFAULT_CLIENT_FORMAT: ClientFormat = { key: "DEFAULT", label: "Standard layout (GET)" };
+export const DEFAULT_CLIENT_FORMAT: ClientFormat = { key: "DEFAULT", label: "Live Smart (GET layout)" };
 
 /** Vendor / brand memo lines are part of a customer's layout; per-style measurement notes ("L - 44\"") are not. */
 const isLayoutNote = (n: string) => /^(brand|vendor)\b/i.test(n) || /^[A-Z0-9 .&/-]{6,}$/.test(n) && !/^(XXL|XL|L|M|S|BO?)\s*[-–]/i.test(n);

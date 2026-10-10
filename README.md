@@ -53,7 +53,7 @@ Afterwards the templates belong to you: **Templates** page → *Edit structure* 
 *Rebuild from a reference workbook* (`npm run template -- actual a.xlsx [b.xlsx …]` or `npm run template -- client file.xlsx [FORMAT_KEY ["Layout name"]]`). Changing a template affects new costings only.
 
 #### Client layouts per customer / brand
-Customers do not share one client sheet: the GET sheets and the YOUSTA sheets differ in headers, default rows, the single *CM* amount row and the price chain
+Customers do not share one client sheet: the GET sheets (brand Live Smart) and the YOUSTA sheets differ in headers, default rows, the single *CM* amount row and the price chain
 (YOUSTA has no finance / FOB / transport rows; its price is *FINAL PO PRICE NON-MSME VENDOR*).
 * **Templates → Add a client costing layout**: name it and drop one sheet of that customer's format; its headers, rows, GST/UOM defaults, vendor/brand block and fixed
   percentages (e.g. YOUSTA Garment Rejection 2%, Overhead+Margin 12%, shown as *template default*) are learnt. No values or styles are stored.

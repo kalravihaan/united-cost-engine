@@ -5,6 +5,7 @@ import { BarChart3, Calculator, Database, LayoutTemplate, Layers, Settings2 } fr
 import { TooltipProvider } from "@/components/ui/overlay";
 import { ToastProvider } from "@/components/ui/toast";
 import { cn } from "@/lib/format";
+import { hasUnsaved, LEAVE_MESSAGE } from "@/features/costing/unsaved";
 
 const NAV = [
   { href: "/", label: "Cost Engine", icon: Calculator },
@@ -34,6 +35,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       <Link
                         key={n.href}
                         href={n.href}
+                        onClick={(e) => {
+                          // leaving the Cost Engine with typed-in, unsaved values: ask first
+                          if (path === "/" && n.href !== "/" && hasUnsaved() && !window.confirm(LEAVE_MESSAGE)) e.preventDefault();
+                        }}
                         className={cn("flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-medium transition-colors", active ? "bg-accent-soft text-accent" : "text-ink-2 hover:bg-black/5 hover:text-ink")}
                       >
                         <n.icon size={14} />

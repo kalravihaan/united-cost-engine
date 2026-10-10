@@ -94,6 +94,15 @@ export async function saveNow() {
 export function startAutosave() {
   memdb.onChange(() => {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(saveNow, 700);
+    timer = setTimeout(() => { timer = null; void saveNow(); }, 700);
   });
+  // closing or hiding the tab within the debounce window must not lose the last change
+  const flush = () => {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+    void saveNow();
+  };
+  window.addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
 }
