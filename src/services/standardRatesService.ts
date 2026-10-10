@@ -36,3 +36,9 @@ export async function loadStandardRates(user: string): Promise<LoadStandardRates
   await auditRepository.log({ userName: user, action: "MASTER_LOAD_STANDARD_RATES", entityType: "rates", details: out });
   return out;
 }
+
+/** Loads the standards only when none are in the masters yet (an older database or saved data file that predates them). */
+export async function ensureStandardRates(user: string): Promise<LoadStandardRatesResult | null> {
+  const present = await prisma.rateMaster.count({ where: { source: { startsWith: STANDARD_SOURCE } } });
+  return present > 0 ? null : loadStandardRates(user);
+}

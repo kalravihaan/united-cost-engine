@@ -158,5 +158,11 @@ d("database: templates, versions, audit, CAD revisions", () => {
     expect(flex.lastRate).toBeGreaterThan(80);
     expect(flex.source).toMatch(/^Standard rates/);
     expect((await m.prisma.auditEvent.findMany({ where: { action: "MASTER_LOAD_STANDARD_RATES" } })).length).toBe(2);
+
+    // ensure: nothing to do when the standards are there; loads them when an older database has none
+    expect(await svc.ensureStandardRates("t")).toBeNull();
+    await m.prisma.rateMaster.deleteMany({ where: { source: { startsWith: "Standard rates" } } });
+    expect((await svc.ensureStandardRates("t"))?.rates.added).toBe(first.rates.added);
+    expect(await m.prisma.rateMaster.count()).toBe(count);
   });
 });

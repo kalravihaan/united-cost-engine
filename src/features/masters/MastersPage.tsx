@@ -42,6 +42,7 @@ function MasterTable({ def }: { def: MasterDef }) {
   const load = React.useCallback(async () => {
     setRows(null);
     try {
+      if (def.name === "fabrics" || def.name === "rates") await api.ensureStandardRates().catch(() => undefined); // older data may predate the standards
       setRows((await api.masterList(def.name)) as Row[]);
       const refNames = [...new Set(def.fields.filter((f) => f.type === "ref" && f.ref).map((f) => f.ref!))];
       const entries = await Promise.all(refNames.map(async (n) => [n, await api.masterOptions(n)] as const));

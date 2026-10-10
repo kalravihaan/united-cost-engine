@@ -17,6 +17,7 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
   const [masters, setMasters] = React.useState<MasterRate[] | null>(null);
   const [failed, setFailed] = React.useState<string | null>(null);
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
+  const [autoLoaded, setAutoLoaded] = React.useState(0);
   const [showAll, setShowAll] = React.useState(false);
 
   React.useEffect(() => {
@@ -24,7 +25,9 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
     setMasters(null);
     setFailed(null);
     setShowAll(false);
-    api.masterList("rates").then((r) => setMasters(r as unknown as MasterRate[])).catch((e) => setFailed((e as Error).message));
+    setAutoLoaded(0);
+    // an older database / saved data file may predate the standards: load them first (never touches rows you added)
+    api.ensureStandardRates().then((r) => { if (r.loaded) setAutoLoaded(r.loaded.rates.added); }).catch(() => undefined).then(() => api.masterList("rates")).then((r) => setMasters(r as unknown as MasterRate[])).catch((e) => setFailed((e as Error).message));
   }, [open]);
 
   const plan: StandardPlan | null = React.useMemo(() => (doc && masters ? planStandardRates(doc, masters, { styleNumber, clientFormat, brand }) : null), [doc, masters, styleNumber, clientFormat, brand]);
@@ -51,6 +54,9 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
             <Badge tone="neutral">{plan.cluster}</Badge>
             <Badge tone="neutral">trims: {plan.family}</Badge>
           </div>
+          {autoLoaded > 0 && (
+            <div className="rounded-md border border-ok/30 bg-ok-soft/60 p-3 text-[12.5px]">The Rate masters had no standards yet, so {autoLoaded} standard rates were loaded into Masters → Rate Masters. Your own rows are untouched.</div>
+          )}
           {masters && masters.length === 0 && (
             <div className="rounded-md border border-warn/30 bg-warn-soft/60 p-3 text-[12.5px]">The Rate masters are empty. Open Masters → Rate Masters and use <b>Load standard rates</b> first.</div>
           )}
