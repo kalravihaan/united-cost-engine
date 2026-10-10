@@ -18,13 +18,11 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
   const [failed, setFailed] = React.useState<string | null>(null);
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [autoLoaded, setAutoLoaded] = React.useState(0);
-  const [showAll, setShowAll] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
     setMasters(null);
     setFailed(null);
-    setShowAll(false);
     setAutoLoaded(0);
     // an older database / saved data file may predate the standards: load them first (never touches rows you added)
     api.ensureStandardRates().then((r) => { if (r.loaded) setAutoLoaded(r.loaded.rates.added); }).catch(() => undefined).then(() => api.masterList("rates")).then((r) => setMasters(r as unknown as MasterRate[])).catch((e) => setFailed((e as Error).message));
@@ -32,11 +30,9 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
 
   const plan: StandardPlan | null = React.useMemo(() => (doc && masters ? planStandardRates(doc, masters, { styleNumber, clientFormat, brand }) : null), [doc, masters, styleNumber, clientFormat, brand]);
   React.useEffect(() => {
-    if (plan) setPicked(new Set(plan.changes.filter((c) => !c.overwrites && c.hasQuantity).map((c) => c.lineId)));
+    if (plan) setPicked(new Set(plan.changes.filter((c) => !c.overwrites).map((c) => c.lineId)));
   }, [plan]);
 
-  const visible = plan ? plan.changes.filter((c) => showAll || c.hasQuantity || picked.has(c.lineId)) : [];
-  const hidden = plan ? plan.changes.length - visible.length : 0;
   const chosen = plan ? plan.changes.filter((c) => picked.has(c.lineId)) : [];
   const toggle = (c: StandardChange) => setPicked((s) => { const x = new Set(s); if (x.has(c.lineId)) x.delete(c.lineId); else x.add(c.lineId); return x; });
 
@@ -60,8 +56,16 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
           {masters && masters.length === 0 && (
             <div className="rounded-md border border-warn/30 bg-warn-soft/60 p-3 text-[12.5px]">The Rate masters are empty. Open Masters → Rate Masters and use <b>Load standard rates</b> first.</div>
           )}
-          {visible.length === 0 ? (
-            <div className="rounded-md border border-line bg-surface-2 p-3 text-[12.5px] text-ink-2">Nothing to apply to the rows that have a quantity: each already has a rate, or has no standard.{hidden > 0 ? " Rows without a quantity are hidden." : ""}</div>
+          {plan.changes.length === 0 ? (
+            <div className="rounded-md border border-line bg-surface-2 p-3 text-[12.5px] text-ink-2">
+              Nothing to apply:{" "}
+              {[
+                plan.alreadyAtStandard.length > 0 && `${plan.alreadyAtStandard.length} row${plan.alreadyAtStandard.length === 1 ? " is" : "s are"} already at the standard`,
+                plan.keptTyped.length > 0 && `${plan.keptTyped.length} with a rate you typed`,
+                plan.noStandard.length > 0 && `${plan.noStandard.length} with no standard`,
+              ].filter(Boolean).join(", ") || "no CMT, trims or embellishment row matches a Rate master"}
+              .
+            </div>
           ) : (
             <div className="max-h-[48vh] overflow-auto rounded-lg border border-line">
               <table className="w-full text-[12.5px]">
@@ -74,12 +78,12 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((c) => (
+                  {plan.changes.map((c) => (
                     <tr key={c.lineId} className="border-t border-line">
                       <td className="px-2"><input type="checkbox" aria-label={`Apply ${c.item}`} checked={picked.has(c.lineId)} onChange={() => toggle(c)} /></td>
                       <td className="px-2 py-1.5">
                         <div className="font-medium">{c.item}</div>
-                        <div className="text-[11px] text-ink-3">{c.sectionKey === "FABRIC_ORDER" ? "fabric order add-on" : c.sectionKey.toLowerCase()}</div>
+                        <div className="text-[11px] text-ink-3">{c.sectionKey === "FABRIC_ORDER" ? "fabric order add-on" : c.sectionKey.toLowerCase()}{c.hasQuantity ? "" : " · no quantity yet"}</div>
                       </td>
                       <td className="num px-2 text-right">
                         <span className="text-ink-3">{c.from === null || c.from === 0 ? "blank" : money(c.from)}</span> <ArrowRight size={11} className="inline text-ink-3" /> <span className="font-semibold">{money(c.to)}</span>
@@ -87,18 +91,13 @@ export function StandardRatesDialog({ open, onOpenChange, doc, styleNumber, clie
                       </td>
                       <td className="px-2 text-[11.5px] text-ink-2">
                         {c.master}
-                        <div className={cn("text-[10.5px]", c.indicative ? "text-warn" : "text-ink-3")}>{c.source.replace(/^Standard rates · /, "")}{c.indicative ? " · indicative (few sheets)" : ""}</div>
+                        <div className={cn("text-[10.5px]", c.indicative ? "text-warn" : "text-ink-3")}>{c.source.replace(/^Standard rates( v\d+)? · /, "")}{c.indicative ? " · indicative (few sheets)" : ""}</div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-          {(hidden > 0 || showAll) && (
-            <button type="button" className="text-[12px] font-medium text-accent hover:underline" onClick={() => setShowAll((x) => !x)}>
-              {showAll ? "Show only rows that have a quantity" : `Show ${hidden} more row${hidden === 1 ? "" : "s"} without a quantity yet`}
-            </button>
           )}
           <ul className="space-y-0.5 text-[11.5px] text-ink-3">
             <li>Fabric rows are never filled: the standard fabric figure is a landed rate (purchase + finishing) and depends on the supplier.</li>

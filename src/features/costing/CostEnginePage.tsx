@@ -233,7 +233,7 @@ export function CostEnginePage() {
 
               <TabsContent value="benchmarks" className="outline-none">
                 {wb.ws ? (
-                  <BenchmarksPanel styleNumber={wb.ws.style.number} brand={wb.ws.style.brand} clientFormat={wb.clientFormat} doc={(wb.drafts.ACTUAL as ActualCosting | undefined) ?? null} result={wb.results.ACTUAL ?? null} rules={wb.rules} />
+                  <BenchmarksPanel styleNumber={wb.ws.style.number} brand={wb.ws.style.brand} clientFormat={wb.ws.style.clientFormat} doc={(wb.drafts.ACTUAL as ActualCosting | undefined) ?? null} result={wb.results.ACTUAL ?? null} rules={wb.rules} />
                 ) : (
                   <EmptyState title="Select a style" />
                 )}
@@ -267,7 +267,7 @@ export function CostEnginePage() {
           onOpenChange={setRatesOpen}
           doc={doc}
           styleNumber={wb.ws.style.number}
-          clientFormat={wb.clientFormat}
+          clientFormat={wb.ws.style.clientFormat}
           brand={wb.ws.style.brand}
           onApply={(fn, count) => {
             wb.edit<ActualCosting>("ACTUAL", fn);

@@ -1,6 +1,6 @@
 import { prisma } from "@/server/db";
 import { auditRepository } from "@/server/repositories/audit";
-import { standardRateRows, STANDARD_SOURCE } from "@/lib/analysis/standardRates";
+import { standardRateRows, STANDARD_SOURCE, STANDARD_TAG } from "@/lib/analysis/standardRates";
 
 export interface LoadStandardRatesResult {
   fabrics: { added: number; updated: number; keptYours: number };
@@ -37,8 +37,8 @@ export async function loadStandardRates(user: string): Promise<LoadStandardRates
   return out;
 }
 
-/** Loads the standards only when none are in the masters yet (an older database or saved data file that predates them). */
+/** Loads the standards when the masters hold none of the current version (a database or saved data file that predates them, or holds an older load). Rows you added are never touched. */
 export async function ensureStandardRates(user: string): Promise<LoadStandardRatesResult | null> {
-  const present = await prisma.rateMaster.count({ where: { source: { startsWith: STANDARD_SOURCE } } });
+  const present = await prisma.rateMaster.count({ where: { source: { startsWith: STANDARD_TAG } } }); // none of this version: nothing loaded yet, or an older load
   return present > 0 ? null : loadStandardRates(user);
 }

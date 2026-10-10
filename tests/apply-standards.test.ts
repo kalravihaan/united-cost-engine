@@ -22,8 +22,8 @@ describe("apply standard rates", () => {
   it("fills CMT, trims and add-ons from the masters, never fabric rows or quantities", async () => {
     const doc = await blankRates();
     const plan = planStandardRates(doc, masters, ctx);
-    expect(plan.segment).toBe("KRTS 4xxx/6xxx (FUT)");
-    expect(plan.family).toBe("KRTS");
+    expect(plan.segment).toBe("Live Smart 4xxx/6xxx (FUT)");
+    expect(plan.family).toBe("Live Smart");
     const by = (item: string) => plan.changes.find((c) => c.item.toLowerCase() === item.toLowerCase());
     expect(by("CMT")).toMatchObject({ to: 67.25, from: null, overwrites: false });
     expect(by("carton")).toMatchObject({ to: 67 });
@@ -49,9 +49,11 @@ describe("apply standard rates", () => {
     expect(after - before).toBeCloseTo(expected, 6);
   });
 
-  it("marks rows that have no quantity yet (the dialog hides them by default)", async () => {
+  it("marks rows that have no quantity yet, and lists rows with a quantity first", async () => {
     const doc = await blankRates();
     const plan = planStandardRates(doc, masters, ctx);
+    const firstEmpty = plan.changes.findIndex((c) => !c.hasQuantity);
+    expect(plan.changes.slice(firstEmpty).every((c) => !c.hasQuantity)).toBe(true);
     for (const c of plan.changes) expect(c.hasQuantity).toBe((doc.lines.find((l) => l.id === c.lineId)!.quantity ?? 0) > 0);
   });
 
@@ -87,7 +89,7 @@ describe("apply standard rates", () => {
 
   it("a rate master you added wins over the standard, and edited standards flow through", async () => {
     const doc = await blankRates();
-    const edited = masters.map((m) => (m.itemName === "carton (KRTS)" ? { ...m, rate: 72 } : m));
+    const edited = masters.map((m) => (m.itemName === "carton (Live Smart)" ? { ...m, rate: 72 } : m));
     edited.push({ costingType: "ACTUAL", sectionKey: "TRIMS", itemName: "Main Label", rate: 0.9, source: "Costing Desk" });
     const plan = planStandardRates(doc, edited, ctx);
     expect(plan.changes.find((c) => c.item.toLowerCase() === "carton")?.to).toBe(72);

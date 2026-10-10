@@ -7,7 +7,7 @@ Findings were produced by running the existing engine/parsers over every file.
 
 | Files | What they are |
 |---|---|
-| `GETKRTSCUT5008` (+B/C/D), `GETKRTSFUT6421/6422/6457`, `client costing.xlsx` | **Client costing, "GET" format** (same layout as our client reference). B/C/D, 6421/6422 are colourways of the same style: only the header line changes (`GETKRTSCUT5008B - olive`). |
+| `GETKRTSCUT5008` (+B/C/D), `GETKRTSFUT6421/6422/6457`, `client costing.xlsx` | **Client costing, "GET" format (brand Live Smart)** (same layout as our client reference). B/C/D, 6421/6422 are colourways of the same style: only the header line changes (`GETKRTSCUT5008B - olive`). |
 | `YAS26…` (14 files) | **Client costing, "YOUSTA / YAS" format** (sheet `revised format`) plus a one-row `excel update` sheet that pulls the key numbers for the customer's upload. |
 | `YOUSTA COST SUMMERY.xlsx` | **Brand summary** across styles: PO qty, PO cost, dispatched qty, actual cost/pc (= the actual-costing sheet's *Cost per pc*), margin, margin %. |
 | `actual costing.xlsx` (28 sheets) | **Actual costing**; sheet names match the YOUSTA summary styles. |

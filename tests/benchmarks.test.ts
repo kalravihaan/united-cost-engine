@@ -19,14 +19,18 @@ describe("analysis snapshot", () => {
 
 describe("benchmarks", () => {
   it("maps style numbers to segments", () => {
-    expect(segmentFor("YETKRTSCUT5008")).toBe("KRTS 5xxx (CUT)");
-    expect(segmentFor("GETKRTSFUT6421")).toBe("KRTS 4xxx/6xxx (FUT)");
-    expect(segmentFor("5009")).toBe("KRTS 5xxx (CUT)");
-    expect(segmentFor("4045")).toBe("KRTS 4xxx/6xxx (FUT)");
+    expect(segmentFor("YETKRTSCUT5008")).toBe("Live Smart 5xxx (CUT)");
+    expect(segmentFor("GETKRTSFUT6421")).toBe("Live Smart 4xxx/6xxx (FUT)");
+    expect(segmentFor("5009")).toBe("Live Smart 5xxx (CUT)");
+    expect(segmentFor("4045")).toBe("Live Smart 4xxx/6xxx (FUT)");
     expect(segmentFor("72232")).toBe("YOUSTA");
     expect(segmentFor("2243")).toBe("YOUSTA");
     expect(segmentFor("YAS26ZWEWYF72300")).toBe("YOUSTA");
     expect(segmentFor("5008", "YOUSTA")).toBe("YOUSTA");
+    // the brand Live Smart (GET layout) decides, whatever the number looks like
+    expect(segmentFor("72232", null, "Live Smart")).toBe("Live Smart 4xxx/6xxx (FUT)");
+    expect(segmentFor("51", "DEFAULT", null)).toBe("Live Smart 5xxx (CUT)");
+    expect(segmentFor("72232", null, "YOUSTA")).toBe("YOUSTA");
   });
 
   it("types fabrics like the analysis", () => {
@@ -50,7 +54,7 @@ describe("benchmarks", () => {
     const p = await actualFixture2();
     const s = p.sheets.find((x) => x.doc.source?.sheet === "4045")!;
     const r = bench(s.doc, "4045");
-    expect(r.segment).toBe("KRTS 4xxx/6xxx (FUT)");
+    expect(r.segment).toBe("Live Smart 4xxx/6xxx (FUT)");
     const cost = r.rows.find((x) => x.key === "cost")!;
     expect(cost.status).toBe("within");
     expect(r.rows.find((x) => x.key === "cmt")?.value).toBeGreaterThan(40);
@@ -84,7 +88,7 @@ describe("standard rates for the masters", () => {
     expect(fabrics.some((f) => f.name.includes(" + ") || f.name === "Other")).toBe(false);
     expect(new Set(rates.map((r) => r.sectionKey))).toEqual(new Set(["FABRIC_ORDER", "TRIMS", "CMT"]));
     expect(rates.find((r) => r.itemName === "carton (YOUSTA)")).toMatchObject({ rate: 67, sectionKey: "TRIMS" });
-    expect(rates.find((r) => r.itemName === "CMT · KRTS 4xxx/6xxx (FUT) · Kurta / top")).toMatchObject({ rate: 67.25, uom: "pc" });
+    expect(rates.find((r) => r.itemName === "CMT · Live Smart 4xxx/6xxx (FUT) · Kurta / top")).toMatchObject({ rate: 67.25, uom: "pc" });
     for (const r of rates) expect(r.source.startsWith(STANDARD_SOURCE) && r.rate > 0, r.itemName).toBe(true);
     expect(new Set(rates.map((r) => `${r.sectionKey}|${r.itemName}`)).size).toBe(rates.length);
   });

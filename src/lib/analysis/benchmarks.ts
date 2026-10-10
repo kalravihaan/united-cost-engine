@@ -38,11 +38,14 @@ export interface BenchReport {
 export function segmentFor(styleNumber: string, clientFormat?: string | null, brand?: string | null): string {
   const s = styleNumber.toUpperCase();
   if (clientFormat === "YOUSTA" || /YOUSTA/i.test(brand ?? "") || s.startsWith("YAS")) return "YOUSTA";
+  if (/live ?smart/i.test(brand ?? "") && !/KRTS/.test(s) && !/\d{4}\s*$/.test(s)) return /^5/.test(s.match(/(\d+)\s*$/)?.[1] ?? "") ? "Live Smart 5xxx (CUT)" : "Live Smart 4xxx/6xxx (FUT)";
   const m = s.match(/KRTS(FUT|CUT)/);
-  if (m) return m[1] === "FUT" ? "KRTS 4xxx/6xxx (FUT)" : "KRTS 5xxx (CUT)";
+  if (m) return m[1] === "FUT" ? "Live Smart 4xxx/6xxx (FUT)" : "Live Smart 5xxx (CUT)";
   const d = s.match(/(\d+)\s*$/)?.[1] ?? "";
-  if (d.length === 4 && d[0] === "5") return "KRTS 5xxx (CUT)";
-  if (d.length === 4 && (d[0] === "4" || d[0] === "6")) return "KRTS 4xxx/6xxx (FUT)";
+  if (d.length === 4 && d[0] === "5") return "Live Smart 5xxx (CUT)";
+  if (d.length === 4 && (d[0] === "4" || d[0] === "6")) return "Live Smart 4xxx/6xxx (FUT)";
+  // the brand / layout says Live Smart (the GET layout) although the number is not one of its series: nearest series by first digit
+  if (/live ?smart/i.test(brand ?? "") || clientFormat === "DEFAULT") return d[0] === "5" ? "Live Smart 5xxx (CUT)" : "Live Smart 4xxx/6xxx (FUT)";
   return "YOUSTA"; // 5-digit and 0xxx–3xxx styles are the YOUSTA numbering
 }
 
@@ -74,7 +77,7 @@ export function benchmarkActual(input: { styleNumber: string; clientFormat?: str
   const dispatch = n(doc.actual.dispatchPcs.qty);
   const per = (x: number) => (dispatch > 0 ? x / dispatch : null);
   const segment = segmentFor(input.styleNumber, input.clientFormat, input.brand);
-  const family = segment === "YOUSTA" ? "YOUSTA" : "KRTS (GET/YET)";
+  const family = segment === "YOUSTA" ? "YOUSTA" : "Live Smart";
 
   const groups = new Map<string, number>();
   const fabricLines: CostLine[] = [];

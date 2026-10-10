@@ -40,6 +40,8 @@ export interface StandardPlan {
   noStandard: string[];
   /** lines whose rate a person typed or overrode: never replaced by a standard */
   keptTyped: string[];
+  /** rows that already carry exactly the standard rate */
+  alreadyAtStandard: string[];
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/frieght/g, "freight").replace(/\s+/g, " ").trim();
@@ -77,7 +79,7 @@ const sampleOf = (source: string): number | null => {
  */
 export function planStandardRates(doc: ActualCosting, masters: MasterRate[], ctx: { styleNumber: string; clientFormat?: string | null; brand?: string | null }): StandardPlan {
   const segment = segmentFor(ctx.styleNumber, ctx.clientFormat, ctx.brand);
-  const family = segment === "YOUSTA" ? "YOUSTA" : "KRTS";
+  const family = segment === "YOUSTA" ? "YOUSTA" : "Live Smart";
   const cons = doc.actual.consumption.value;
   const cluster = cons !== null && cons >= 2.2 ? "Set / long (≥2.2 m)" : "Kurta / top";
 
@@ -88,6 +90,7 @@ export function planStandardRates(doc: ActualCosting, masters: MasterRate[], ctx
   const changes: StandardChange[] = [];
   const noStandard: string[] = [];
   const keptTyped: string[] = [];
+  const alreadyAtStandard: string[] = [];
   for (const l of doc.lines) {
     if (l.removed || l.calc !== "QTY_X_RATE") continue;
     if (l.sectionKey !== "CMT" && l.sectionKey !== "TRIMS" && l.sectionKey !== "FABRIC_ORDER") continue;
@@ -109,7 +112,10 @@ export function planStandardRates(doc: ActualCosting, masters: MasterRate[], ctx
       continue;
     }
     const from = l.rate ?? null;
-    if (from !== null && Math.abs(from - m.rate) < 1e-9) continue; // already there
+    if (from !== null && Math.abs(from - m.rate) < 1e-9) {
+      alreadyAtStandard.push(l.item);
+      continue;
+    }
     if (from !== null && from !== 0 && (l.prov.rate?.origin === "MANUAL" || l.prov.rate?.origin === "OVERRIDE")) {
       keptTyped.push(l.item); // a person's number: the standard never replaces it
       continue;
@@ -118,7 +124,7 @@ export function planStandardRates(doc: ActualCosting, masters: MasterRate[], ctx
     const k = sampleOf(source);
     changes.push({ lineId: l.id, item: l.item, sectionKey: l.sectionKey, from, to: m.rate, master: m.itemName, source, overwrites: from !== null && from !== 0, indicative: k !== null && k < 3, hasQuantity: (l.quantity ?? 0) > 0 });
   }
-  return { segment, cluster, family, changes, noStandard, keptTyped };
+  return { segment, cluster, family, changes: changes.sort((a, b) => Number(b.hasQuantity) - Number(a.hasQuantity)), noStandard, keptTyped, alreadyAtStandard };
 }
 
 /** Write the chosen rates into the costing. Origin MASTER, the rate it replaces is kept as the line's original (restorable); quantities untouched. */

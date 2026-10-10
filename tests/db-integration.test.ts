@@ -164,5 +164,12 @@ d("database: templates, versions, audit, CAD revisions", () => {
     await m.prisma.rateMaster.deleteMany({ where: { source: { startsWith: "Standard rates" } } });
     expect((await svc.ensureStandardRates("t"))?.rates.added).toBe(first.rates.added);
     expect(await m.prisma.rateMaster.count()).toBe(count);
+    // an older load (other version tag, old names) is replaced; your own rows stay
+    await m.prisma.rateMaster.deleteMany({ where: { source: { startsWith: "Standard rates" } } });
+    await m.prisma.rateMaster.create({ data: { costingType: "ACTUAL", sectionKey: "CMT", itemName: "CMT · KRTS 5xxx (CUT) · Kurta / top", rate: 65, source: "Standard rates · older load" } });
+    expect((await svc.ensureStandardRates("t"))?.rates.replaced).toBe(1);
+    expect(await m.prisma.rateMaster.count({ where: { itemName: { contains: "KRTS" } } })).toBe(0);
+    expect(await m.prisma.rateMaster.count()).toBe(count);
+    expect((await m.prisma.rateMaster.findMany({ where: { itemName: "my own tag" } })).length).toBe(1);
   });
 });

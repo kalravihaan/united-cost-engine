@@ -7,13 +7,13 @@ and equals the workbook's own totals).
 **Data used:** 63 actual sheets read (58 unique: 5 YOUSTA sheets sit in both actual workbooks), 23 client sheets (8 GET files = 3 distinct costings, 15 YOUSTA
 files, of which only `2243` and `…72300` carry fabric values), the YOUSTA cost summary (17 styles). Four password-protected GETKRTSFUT files were not readable.
 **Brand families are inferred**, because no file carries a brand master: *YOUSTA* (28 sheets: 5-digit styles and the 0xxx–3xxx series; vendor code 32026735) and
-*KRTS (GET/YET)* (30 sheets: YETKRTS/RETKRTS product IDs, styles 4xxx/5xxx/6xxx; client vendor code RR10337044). The KRTS brand name is not stated anywhere.
+*Live Smart* (30 sheets: YETKRTS/RETKRTS product IDs, styles 4xxx/5xxx/6xxx; client vendor code RR10337044). The KRTS brand name is not stated anywhere.
 
 Scale: 249,405 dispatched pieces, ₹6.77 crore of sale value.
 
 ## 1. The two families
 
-| | KRTS (GET/YET) | YOUSTA |
+| | Live Smart | YOUSTA |
 |---|---|---|
 | Sheets / pieces dispatched | 30 / 201,071 | 28 / 48,334 |
 | Average sale rate / pc | **₹264.4** | **₹301.9** |
@@ -33,14 +33,14 @@ Scale: 249,405 dispatched pieces, ₹6.77 crore of sale value.
 
 | Segment | Sheets | Sale | Fabric | Embroidery | Add-ons | CMT | Labels+packing | **Cost** | Range | **Profit** |
 |---|---|---|---|---|---|---|---|---|---|---|
-| KRTS 5xxx plain | 8 | 225 | 124.2 | – | – | 60.7 | 8.0 | **198.6** | 173–205 | 11.7% |
-| KRTS 5xxx embellished | 8 | 240 | 124.2 | 8.5 | – | 69.7 | 7.5 | **211.1** | 189–220 | 12.0% |
-| KRTS 4xxx/6xxx embellished | 13 | 320 | 130.0 | 46.8 | 6.3 | 67.3 | 8.6 | **259.2** | 246–273 | 17.8% |
+| Live Smart 5xxx plain | 8 | 225 | 124.2 | – | – | 60.7 | 8.0 | **198.6** | 173–205 | 11.7% |
+| Live Smart 5xxx embellished | 8 | 240 | 124.2 | 8.5 | – | 69.7 | 7.5 | **211.1** | 189–220 | 12.0% |
+| Live Smart 4xxx/6xxx embellished | 13 | 320 | 130.0 | 46.8 | 6.3 | 67.3 | 8.6 | **259.2** | 246–273 | 17.8% |
 | YOUSTA plain | 11 | 277.6 | 138.1 | – | 2.1 | 62.3 | 7.8 | **213.9** | 146–242 | 25.8% |
 | YOUSTA embellished | 15 | 320 | 129.4 | 25.2 | – | 64.6 | 7.6 | **237.1** | 172–289 | 24.5% |
 
 Sets / long garments (consumption ≥ 2.2 m: 67762, 2397, 6206) are separate: cost ₹304–468, CMT ₹112–127, fabric 2.4–3.6 m a piece.
-Price ladders: KRTS 5xxx ₹200 / 225 / 230 / 240; KRTS 4xxx/6xxx ₹305–320 (set ₹490); YOUSTA ₹223–581, median ₹288.
+Price ladders: Live Smart 5xxx ₹200 / 225 / 230 / 240; Live Smart 4xxx/6xxx ₹305–320 (set ₹490); YOUSTA ₹223–581, median ₹288.
 
 ## 3. Fabric: rates and consumption
 
@@ -56,7 +56,7 @@ Landed rate = purchase + finishing/printing, ₹ per metre bought.
 | Poly cotton | 3 | 68.2 | 67.9–68.2 | 144.0 |
 
 * 40x30 cotton and poly cotton are bought as **greige (₹45–50/m) + finishing/printing (₹20–23/m)** in the 4xxx and early 5xxx sheets, and as finished fabric (₹68–75/m) in the later 5xxx sheets.
-* **Consumption.** Costed consumption (the CONSUPMTION cell) has a median of **1.61 m (KRTS)** and **1.42 m (YOUSTA)**; metres purchased per dispatched piece are **1.68 / 1.57**, i.e. a
+* **Consumption.** Costed consumption (the CONSUPMTION cell) has a median of **1.61 m (Live Smart)** and **1.42 m (YOUSTA)**; metres purchased per dispatched piece are **1.68 / 1.57**, i.e. a
   median **+6.5% / +6.7%** allowance over the cell (middle half +4% to +14%). By fabric: cotton slub 1.38 → 1.56, 40x30 cotton 1.54 → 1.62, cotton flex 1.60 → 1.74, PST/Gadhwal 1.54 → 1.70, poly cotton 1.85 → 2.11.
 * **CAD → costing.** Where a CAD exists: #72145 CAD 1.60 m = costing cell 1.60 m exactly; #6100 CAD 1.59 vs cell 1.60 (+0.6%); #5009 CAD 1.25 vs cell 1.27 (+1.6%); #5008 CAD 1.50 vs cell 1.61 (+7.3%). Fabric actually
   *used* per cut piece in 5008 is 1.48–1.51 m, i.e. the CAD length. The standard to use: **costed consumption = CAD length per set (+0 … 7%)**; real use ≈ CAD.
@@ -67,12 +67,12 @@ Landed rate = purchase + finishing/printing, ₹ per metre bought.
 
 ## 4. CMT, embellishment, trims
 
-* **CMT per piece** (kurta): KRTS 5xxx median ₹65.3 (46.7–71.2; 71.16 recurs on the 5008 sheets), KRTS 4xxx/6xxx ₹67.3 (60.6–74.5), YOUSTA ₹63.5 (50.5–83.6). Sets ₹112–127. CMT is billed on dispatched pieces (ratio 1.00).
-* **Embellishment** is on 21 of 30 KRTS and 17 of 28 YOUSTA sheets, median ₹25 a piece when present. By kind (₹ per piece): emb neck & sleeve 8.4 (5xxx) – 24; neck emb 33.5–39; sleeve emb 10–29.5;
+* **CMT per piece** (kurta): Live Smart 5xxx median ₹65.3 (46.7–71.2; 71.16 recurs on the 5008 sheets), Live Smart 4xxx/6xxx ₹67.3 (60.6–74.5), YOUSTA ₹63.5 (50.5–83.6). Sets ₹112–127. CMT is billed on dispatched pieces (ratio 1.00).
+* **Embellishment** is on 21 of 30 Live Smart and 17 of 28 YOUSTA sheets, median ₹25 a piece when present. By kind (₹ per piece): emb neck & sleeve 8.4 (5xxx) – 24; neck emb 33.5–39; sleeve emb 10–29.5;
   front emb 18; palla emb 47–61; yoke emb 60; katha work 1.2–11; couching 7.5; hand work 11. Lace ₹0.9–7 and tassels ₹1.25–8 per metre/piece; foil-printed fabric ₹89/m.
-* **Trims rate card** (very stable, so these are true standards): main label ₹0.55 (KRTS) / 0.67 (YOUSTA); wash care 0.39; price tag 1.75 (KRTS) / 3.10 (YOUSTA); size sticker 0.75; photo tag 0.75 (6xxx only);
-  polybag + RFID 1.92–2.40 (median 2.08 / 1.95); carton **₹67 per carton, about 48 (KRTS) / 45 (YOUSTA) pieces per carton**; master polybag 5.1–6.75 (≈0.14 per piece); carton sticker 0.60; freight a lump of ₹4 (KRTS) / ₹3.
-  Labels + packaging + freight come to **≈ ₹7.9 a piece (KRTS) and ₹8.4 (YOUSTA)**.
+* **Trims rate card** (very stable, so these are true standards): main label ₹0.55 (Live Smart) / 0.67 (YOUSTA); wash care 0.39; price tag 1.75 (Live Smart) / 3.10 (YOUSTA); size sticker 0.75; photo tag 0.75 (6xxx only);
+  polybag + RFID 1.92–2.40 (median 2.08 / 1.95); carton **₹67 per carton, about 48 (Live Smart) / 45 (YOUSTA) pieces per carton**; master polybag 5.1–6.75 (≈0.14 per piece); carton sticker 0.60; freight a lump of ₹4 (Live Smart) / ₹3.
+  Labels + packaging + freight come to **≈ ₹7.9 a piece (Live Smart) and ₹8.4 (YOUSTA)**.
 
 ## 5. Price, margin and what the customer sheets allow
 

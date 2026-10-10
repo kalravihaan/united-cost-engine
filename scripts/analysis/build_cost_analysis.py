@@ -29,9 +29,9 @@ for a in A:  # the same 5 YOUSTA sheets appear in both actual workbooks
 def family(a):
     t = a["title"].upper()
     if "KRTS" in t:
-        return "KRTS (GET/YET)"
+        return "Live Smart"
     if a["file"].endswith("_2.xlsx") and re.match(r"^[456]\d{3}", a["style"]):
-        return "KRTS (GET/YET)"
+        return "Live Smart"
     return "YOUSTA"
 
 def series(a):
@@ -121,7 +121,7 @@ df["value_loss_pct_of_cost"] = df.value_loss / df.total_cost * 100
 df["used_per_cut"] = df.used_m / df.cut_pcs
 df["received_per_cut"] = df.received_m / df.cut_pcs
 df["ordered_vs_received_pct"] = (df.fab_m - df.received_m) / df.fab_m * 100
-df["segment"] = np.where(df.family == "YOUSTA", "YOUSTA", np.where(df.series == "CUT", "KRTS 5xxx (CUT)", "KRTS 4xxx/6xxx (FUT)"))
+df["segment"] = np.where(df.family == "YOUSTA", "YOUSTA", np.where(df.series == "CUT", "Live Smart 5xxx (CUT)", "Live Smart 4xxx/6xxx (FUT)"))
 df["embellished"] = np.where(df.emb_pc > 0.5, "embellished", "plain")
 df = df.sort_values(["family", "segment", "style"]).reset_index(drop=True)
 
@@ -365,7 +365,7 @@ readme = pd.DataFrame({"": [
     "BRAND FAMILIES (derived from the files, not from a brand master – none exists):",
     "  YOUSTA: 28 actual sheets – the workbook-1 styles (5-digit 6xxxx/7xxxx and the 0xxx/1xxx/2xxx/3xxx series), all in the YOUSTA cost summary or numbered like 2243 (a YOUSTA client sheet, vendor code 32026735).",
     "  KRTS (GET/YET): 30 actual sheets – product IDs YETKRTS… / RETKRTS… (client sheets GETKRTS…), styles 4xxx/5xxx/6xxx. 5xxx = 'CUT' series, 4xxx = 'FUT' series; 6xxx assumed FUT (client files GETKRTSFUT6421/6422/6457).",
-    "  The brand name of the KRTS family is not stated in any file (client vendor code RR10337044). Confirm and the segments can be relabelled.",
+    "  The KRTS product-ID family is the brand Live Smart (confirmed by the user; the GET client costing format is Live Smart's; client vendor code RR10337044).",
     "",
     "DEFINITIONS",
     "  Cost per piece = actual total cost ÷ dispatched pieces (as in the sheets). Profit % = per-piece profit ÷ order rate (as in the sheets; value loss is not deducted).",
