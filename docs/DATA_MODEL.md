@@ -7,7 +7,7 @@
 
 This document is the output of the source-file study (Phase 1) and the mapping
 (Phase 2). Every statement below was verified against the three source files in
-`data/sources/` and is re-verified by the automated tests in `tests/`.
+`data/reference/` (the first versions of the actual, client and CAD files) and is re-verified by the automated tests in `tests/`.
 
 ## 1. Source files — what they actually contain
 
@@ -191,5 +191,9 @@ Ambiguities flagged by the parser (never silently resolved):
 * Style matching (`src/lib/normalization/styleMatching.ts`) normalizes (case, `#`, whitespace, colour
   suffix, alpha prefix + numeric core, leading zeros) and returns a **confidence**. Only an exact
   normalized equality is auto-selected; everything else is "Possible match found — please confirm".
-* Style `72232` (CAD) has no costing in either workbook: a costing must be started from a template
-  (structure only, or copy of an existing costing, rows marked `TEMPLATE`).
+* Style `72232` (CAD) has no costing in either workbook. Since the rework (the engine is the system of record) every style starts from the
+  default template of each mode (all headers and rows, no values; rows carry `TEMPLATE` provenance); nothing is copied from another style.
+
+> **Status of this document.** Written during the first study (phases 1–2). Sections 1–3 are still accurate for the first three files; later
+> files and later decisions (second actual workbook, YOUSTA layout, MSME, category tiers, standard rates) are in `docs/REAL_SCOPE.md` and
+> `docs/COST_ANALYSIS.md`. §4's customer/brand statement still holds: no brand master exists in any file, mappings are entered by an administrator.

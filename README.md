@@ -119,7 +119,7 @@ src/
   features/              UI modules: costing, cad, styles, comparison, masters, templates
   components/            UI primitives
 prisma/schema.prisma     PostgreSQL schema
-data/reference/          the two reference workbooks (structure source + engine verification fixtures)
+data/reference/          the five reference workbooks (structure source + engine verification fixtures)
 tests/                   vitest suites (engine, parsers, CAD, matching, validation, DB integration)
 ```
 
@@ -163,7 +163,7 @@ Uploads go through a `FileStore` interface (local disk now, swap for S3/GCS).
 * **Client “FINANCE COST 3%”** label vs formula `=L43*0`: the applied factor is an explicit input (default 0); the label is a reference. `FINAL PO = FOB − finance cost` is kept as in the source. Garment Rejection %, Testing, transport etc. are entered per style (no defaults).
 * The reference actual sheets (63) contain formula quirks (next-row references in `E12/E13`, shifted rejection formulas, `D41 + D50` in 2 sheets, …). The engine uses the canonical `qty × rate`; all 28 reference sheets reproduce the workbook's cached values (verification tests).
 * Comparison grouping (which actual lines compare with which client category) is an interpretation; configurable (Masters → Costing Rules).
-* Fabric / Rate masters start empty (they are user-maintained); nothing is auto-priced.
+* Fabric / Rate masters are seeded with the analysis's standard rates (rows whose source starts with *Standard rates*; the rest is user-maintained). They are reference values: nothing is priced from them unless someone clicks *Standard rates* on an Actual costing and ticks rows.
 * CAD parsing needs a PDF text layer; layouts with unfamiliar labels need a synonym added to `LABELS`.
 
 ## Tests

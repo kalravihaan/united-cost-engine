@@ -21,6 +21,7 @@ const eslintConfig = defineConfig([
     "standalone/gen/**",
     "dist-standalone/**",
     "dist-simulator/**",
+    "Handoff Package/**", // documentation + a snapshot of the source for hand-over; not part of the app
   ]),
 ]);
 
