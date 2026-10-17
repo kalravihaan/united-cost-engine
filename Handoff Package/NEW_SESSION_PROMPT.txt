@@ -5,7 +5,7 @@ Copy the text below as the first message of a new session, after giving the AI t
 
 --------------------------------------------------------------------------------
 
-You are taking over an in-progress software project: the **Cost Engine** for a garment manufacturer (United Textile Mills). The attached package is a complete hand-over — treat its documents as your memory of the previous sessions and continue as if you had been there.
+You are taking over an in-progress software project: the Cost Engine for a garment manufacturer (United Textile Mills). The attached package is a complete hand-over — treat its documents as your memory of the previous sessions and continue as if you had been there.
 
 1. Read, in this order: `00_START_HERE.md`, `01_PROJECT_BRIEF.md`, `03_BUSINESS_AND_DOMAIN_GUIDE.md`, `04_ARCHITECTURE.md`, `05_BUILD_HISTORY_AND_DECISIONS.md`, `06_REJECTED_IDEAS_AND_LIMITATIONS.md`, `07_STATUS_PENDING_AND_ROADMAP.md`, `11_GOTCHAS_AND_WORKING_AGREEMENTS.md`. Use `02_…`, `08_…`, `09_…`, `10_…` as references.
 2. Do not redo anything in `06_…` and do not violate the rules in `01_…` (engine is the system of record; Actual and Client are independent; never guess or invent; never overwrite versions; standards are opt-in).
