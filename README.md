@@ -42,6 +42,7 @@ npm run dev                      # http://localhost:3000
 ```
 
 Other scripts: `npm test` · `npm run typecheck` · `npm run lint` · `npm run build && npm start`.
+Verification tools: `npm run verify:workbooks [dir…]` (engine vs the workbooks' own calculated values) · `npm run verify:export` (exports recalculated in LibreOffice, needs `soffice`) · `npm run smoke:standalone [html] [chromium]` (real-browser walk of the single-file build).
 Database integration tests run when `TEST_DATABASE_URL` points to a disposable database whose name contains `test`
 (schema pushed with `DATABASE_URL=$TEST_DATABASE_URL npx prisma db push`).
 

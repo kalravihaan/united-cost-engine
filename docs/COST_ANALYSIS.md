@@ -5,7 +5,7 @@ Everything below is computed from the files themselves (workbook: `cost_analysis
 and equals the workbook's own totals).
 
 **Data used:** 63 actual sheets read (58 unique: 5 YOUSTA sheets sit in both actual workbooks), 23 client sheets (8 GET files = 3 distinct costings, 15 YOUSTA
-files, of which only `2243` and `…72300` carry fabric values), the YOUSTA cost summary (17 styles). Four password-protected GETKRTSFUT files were not readable.
+files, of which only `2243` and `…72300` carry fabric values), the YOUSTA cost summary (17 styles). Five password-protected GETKRTSFUT files (6002 ×2, 6098, 6099, 6100) were not readable.
 **Brand families are inferred**, because no file carries a brand master: *YOUSTA* (28 sheets: 5-digit styles and the 0xxx–3xxx series; vendor code 32026735) and
 *Live Smart* (30 sheets: YETKRTS/RETKRTS product IDs, styles 4xxx/5xxx/6xxx; client vendor code RR10337044). The KRTS brand name is not stated anywhere.
 

@@ -17,6 +17,9 @@
     "template": "tsx scripts/rebuild-template.ts",
     "simulator:build": "node simulator/build.mjs",
     "standalone:build": "node standalone/build.mjs",
+    "verify:workbooks": "tsx scripts/verify-against-workbooks.ts",
+    "verify:export": "tsx scripts/verify-export-recalc.ts",
+    "smoke:standalone": "node scripts/smoke-standalone.mjs",
     "test:standalone": "node standalone/gen-meta.mjs && vitest run -c vitest.standalone.config.ts"
   },
   "dependencies": {
