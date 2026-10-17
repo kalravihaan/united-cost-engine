@@ -1,8 +1,9 @@
-# Prompt for a new AI session
+PROMPT FOR A NEW AI SESSION
+===========================
 
 Copy the text below as the first message of a new session, after giving the AI the whole contents of this package (the folder, or the files if your tool does not accept folders). If your AI can run commands, unzip/open `project-source/` as the working directory; if it can only read files, it can still understand everything from the documents and the plain-text source in `project-source/`.
 
----
+--------------------------------------------------------------------------------
 
 You are taking over an in-progress software project: the **Cost Engine** for a garment manufacturer (United Textile Mills). The attached package is a complete hand-over — treat its documents as your memory of the previous sessions and continue as if you had been there.
 

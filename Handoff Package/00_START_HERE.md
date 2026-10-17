@@ -32,7 +32,7 @@ A **Cost Engine** for a garment manufacturer, **United Textile Mills**. It **rep
 | `10_DATA_INVENTORY.md` | every reference file (workbooks, CAD PDFs), what it is, quirks, protected files |
 | `11_GOTCHAS_AND_WORKING_AGREEMENTS.md` | traps, conventions, mistakes made before — and how the work should be done |
 | `CHANGELOG.md` | the commit history (subject lines) |
-| `NEW_SESSION_PROMPT.md` | a ready-made first message to give the AI in a new session |
+| `NEW_SESSION_PROMPT.txt` | a ready-made first message to give the AI in a new session |
 | `deliverables/cost-engine.html` | **the finished product**: the whole Cost Engine as ONE file. Double-click it; no install, no server, no internet |
 | `deliverables/analysis/` | the cost-analysis workbook and the data it was built from |
 | `project-source/` | the complete source code (a snapshot of the repository), ready to `npm install` and run |
