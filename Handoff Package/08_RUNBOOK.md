@@ -93,3 +93,15 @@ The build regenerates `standalone/gen/` (schema metadata, route table, first-run
 ## 7. Environment notes from development
 
 Linux container, 4 CPUs, 15 GB RAM; PostgreSQL 16 local; Chromium via Playwright; LibreOffice headless used to recalculate exported workbooks; `pdftotext` to compare CAD text; Python 3 with pandas/openpyxl for analysis. Heavy parallel work (several servers/browsers/LibreOffice at once) is slow on 4 CPUs.
+
+## 8. Hosting on GitHub (optional — the new operator's choice)
+
+* **The single HTML file can be hosted on GitHub Pages** (or any static host: Netlify, Cloudflare Pages, an office web server). It is a static file with no server calls, no outside requests and no service worker. Checked: served over `http://` under a sub-path (as GitHub Pages serves a project site), it loads, seeds the 42 standard rates, keeps data across a reload (IndexedDB) and makes zero requests to any other host. Not tested on GitHub's own servers (no access from the original environment).
+* **The full server version (Next.js + PostgreSQL) cannot run on GitHub Pages** — it needs a Node host and a database (see R-07 in `06_…`). GitHub can store its code, but not run it.
+* How, in outline: put `deliverables/cost-engine.html` in a repository as `index.html` (e.g. in a `docs/` folder or a `gh-pages` branch) and enable *Settings → Pages* for that folder/branch; the site appears at `https://<account>.github.io/<repository>/`. A GitHub Actions workflow can rebuild it (`npm ci && npm run standalone:build`) and publish `dist-standalone/cost-engine.html` on each push.
+* Things to decide before publishing:
+  1. **Visibility.** On most GitHub plans a Pages site is **public** even when the repository is private (private Pages needs GitHub Enterprise Cloud). The HTML contains the standard rates, margins and benchmark tables derived from the business's real costings — anyone with the link can read them. Publish only if that is acceptable, otherwise use an access-controlled host or keep distributing the file directly.
+  2. **Data stays per browser.** Each visitor's work lives in *their* browser's storage for that web address (and in data files they save). Nothing is stored on GitHub and nothing is shared between people; changing the address (new domain/repository name) starts empty — use Save/Open data file to carry data across.
+  3. **No login.** Anyone who opens the page can use it (on their own browser data only).
+  4. **Updates.** Replacing the file replaces the app for everyone who reloads; their saved data keeps working (new template rows only apply to costings started afterwards).
+
